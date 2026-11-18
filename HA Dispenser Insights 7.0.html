@@ -293,7 +293,8 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
     <section class="plate" id="alerts" hidden>
       <div class="plate-head"><h2>Pump filled less than 10% · all shops</h2>
         <div class="share-tools">
-          <span class="seg" id="al-win" aria-label="Look back"><button data-w="7">7 days</button><button data-w="30">30 days</button><button data-w="90">90 days</button></span>
+          <span class="seg" id="al-win" aria-label="Period"><button data-p="all">All data</button><button data-p="365">12 months</button><button data-p="90">90 days</button><button data-p="30">30 days</button><button data-p="7">7 days</button></span>
+          <span class="dates"><input type="date" id="al-from" aria-label="Alerts from date"><span class="muted">to</span><input type="date" id="al-to" aria-label="Alerts to date"></span>
           <button class="btn" type="button" id="al-ack-all" hidden>Mark all as seen</button>
           <button class="btn" type="button" id="al-csv" hidden title="One line per error in the chosen period">Export .csv</button>
           <button class="btn" type="button" id="al-scan">Scan again</button>
@@ -1638,8 +1639,22 @@ function stepStats(ad2) {
   }
   return out;
 }   // raise when MDF.pumpAlerts returns more, so cached scans are read again
-const alerts = { res: new Map(), err: new Map(), run: null, again: false, scannedAt: 0, win: [7, 30, 90].includes(+store.get('ha.alwin')) ? +store.get('ha.alwin') : 30 };
+const alerts = { res: new Map(), err: new Map(), run: null, again: false, scannedAt: 0, preset: '30', from: 0, to: 0 };
 const nowWall = () => Date.now() - new Date().getTimezoneOffset() * 60000;
+/* Period of the shop alerts, the same choices as the period filter of a shop: whole days up to and including
+   today ('all', or a number of days), or 'custom' from the two date fields. from/to are on the dispenser's clock. */
+function setAlertsPreset(p) {
+  alerts.preset = p;
+  alerts.to = Math.floor(nowWall() / DAY) * DAY + DAY - 1;
+  alerts.from = p === 'all' ? 0 : alerts.to + 1 - (+p) * DAY;
+}
+function alertsPeriodText() {
+  if (alerts.preset === 'all') return 'all data';
+  if (alerts.preset === '365') return 'the last 12 months';
+  if (alerts.preset !== 'custom') return `the last ${alerts.preset} days`;
+  return alerts.from ? `${fDate(alerts.from)} – ${fDate(alerts.to)}` : `all data up to ${fDate(alerts.to)}`;
+}
+{ const p = store.get('ha.alpreset') || store.get('ha.alwin'); setAlertsPreset(['all', '365', '90', '30', '7'].includes(p) ? p : '30'); }
 const ackOf = name => +store.get('ha.ack.' + name) || 0;
 /* When the shop was contacted about its pump alerts (real time, ms), 0 = not contacted.
    Through the helper the ticks live in one file on the share for the whole team ({ folder: { t, by } });
@@ -1708,9 +1723,10 @@ async function scanShops() {
   if (alerts.again) { alerts.again = false; scanShops(); }
 }
 function alertRows() {
-  const from = nowWall() - alerts.win * DAY;
+  if (alerts.preset !== 'custom') setAlertsPreset(alerts.preset);   // a page left open past midnight moves on with the day
+  const { from, to } = alerts;
   return [...alerts.res].map(([name, r]) => {
-    const ack = ackOf(name), inWin = r.events.filter(e => e[0] >= from);
+    const ack = ackOf(name), inWin = r.events.filter(e => e[0] >= from && e[0] <= to);
     const byCh = new Map(); for (const [, c] of inWin) byCh.set(c, (byCh.get(c) || 0) + 1);
     return { name, r, shop: shopOf(name), n: inWin.length, nNew: inWin.filter(e => e[0] > ack).length, last: inWin.length ? inWin[inWin.length - 1][0] : null, chs: [...byCh].sort((a, b) => b[1] - a[1] || a[0] - b[0]) };
   });
@@ -1721,10 +1737,13 @@ function renderAlerts() {
   const box = $('#alerts');
   box.hidden = SHARE_MODE === 'none';
   if (box.hidden) return;
-  for (const b of $('#al-win').children) b.setAttribute('aria-pressed', +b.dataset.w === alerts.win);
   const rows = alertRows(), hit = rows.filter(r => r.n).sort((a, b) => (!a.nNew - !b.nNew) || b.nNew - a.nNew || b.last - a.last);
   const quiet = rows.filter(r => !r.n).sort((a, b) => (a.shop || a.name).localeCompare(b.shop || b.name));
-  const nNew = hit.filter(r => r.nNew).length, win = `the last ${alerts.win} days`;
+  const nNew = hit.filter(r => r.nNew).length, win = alertsPeriodText();
+  for (const b of $('#al-win').children) b.setAttribute('aria-pressed', b.dataset.p === alerts.preset);
+  const today = fIso(alerts.to > nowWall() ? nowWall() : alerts.to), f = $('#al-from'), t = $('#al-to');
+  f.max = t.max = fIso(nowWall());
+  f.value = alerts.from ? fIso(alerts.from) : ''; t.value = today;
   $('#alerts-badge').textContent = nNew; $('#alerts-badge').hidden = !nNew;
   $('#al-csv').hidden = !hit.length;
   $('#al-ack-all').hidden = !nNew;
@@ -1877,13 +1896,14 @@ const csvWall = t => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
 const csvLocal = t => { const d = new Date(t); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const csvToday = () => csvLocal(Date.now()).slice(0, 10);
 function exportAlerts() {
-  const from = nowWall() - alerts.win * DAY, out = [];
-  for (const x of alertRows().filter(x => x.n)) {
+  const rows = alertRows(), { from, to } = alerts, out = [];
+  for (const x of rows.filter(x => x.n)) {
     const ack = ackOf(x.name), ct = contactOf(x.name), contacted = ct ? csvLocal(ct) : 'No', since = errorsSince(x.name, x.last) ? 'Yes' : '';
-    for (const [t, c] of x.r.events) if (t >= from) out.push([x.shop || x.name, x.name, csvWall(t), c, x.r.colorants[c] || '', t > ack ? 'New' : 'Seen', contacted, since, csvLocal(x.r.ts)]);
+    for (const [t, c] of x.r.events) if (t >= from && t <= to) out.push([x.shop || x.name, x.name, csvWall(t), c, x.r.colorants[c] || '', t > ack ? 'New' : 'Seen', contacted, since, csvLocal(x.r.ts)]);
   }
   out.sort((a, b) => a[0].localeCompare(b[0]) || b[2].localeCompare(a[2]));
-  downloadCsv(`pump-filled-less-than-10pct_${alerts.win}-days_${csvToday()}.csv`, ['Shop', 'Folder', 'Error time', 'Channel', 'Colorant', 'Status', 'Contacted', 'Errors since contact', 'Backup from'], out);
+  const period = alerts.preset === 'all' ? 'all-data' : alerts.preset === 'custom' ? `${fIso(from)}_to_${fIso(to)}` : alerts.preset === '365' ? '12-months' : `${alerts.preset}-days`;
+  downloadCsv(`pump-filled-less-than-10pct_${period}_${csvToday()}.csv`, ['Shop', 'Folder', 'Error time', 'Channel', 'Colorant', 'Status', 'Contacted', 'Errors since contact', 'Backup from'], out);
 }
 function exportTravel() {
   const col = travelCol(), by = travelBy(), rows = travelRows(col, by);
@@ -1947,7 +1967,10 @@ $('#tr-col').addEventListener('change', e => { store.set('ha.trcol', e.target.va
 $('#al-csv').addEventListener('click', exportAlerts);
 $('#tr-csv').addEventListener('click', exportTravel);
 $('#tr-by').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; store.set('ha.trview', b.dataset.by); renderTravel(); });
-$('#al-win').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; alerts.win = +b.dataset.w; store.set('ha.alwin', b.dataset.w); renderAlerts(); });
+$('#al-win').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setAlertsPreset(b.dataset.p); store.set('ha.alpreset', b.dataset.p); renderAlerts(); });
+// Own dates make a custom period (not remembered, like on a shop); an empty "from" means from the start of the data
+$('#al-from').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); alerts.from = isNaN(t) ? 0 : Math.min(t, alerts.to - DAY + 1); alerts.preset = 'custom'; renderAlerts(); });
+$('#al-to').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); if (isNaN(t)) return; alerts.to = Math.max(alerts.from + DAY - 1, t + DAY - 1); alerts.preset = 'custom'; renderAlerts(); });
 // colleagues' contacted ticks show up when you come back to this window
 addEventListener('focus', () => { if (alerts.res.size) loadContacts(); });
 renderAlerts();
