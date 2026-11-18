@@ -1,0 +1,1601 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HA Dispenser Insights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mona+Sans:wdth,wght@75..125,200..900&display=swap">
+<style>
+/* Layout: BOSS paints corporate — full-width Dark Green header band with the white logo, Soft Green work area, white plates with 4 pt corners.
+   Colours from the BOSS paints primary palette; chart and heatmap hues from its secondary palette. */
+:root {
+  --brand: #0D3932;          /* BOSS Dark Green */
+  --brand-ink: #ffffff;
+  --forest: #226E55;         /* BOSS Forest Green */
+  --lush: #A1D377;           /* BOSS Lush Green */
+  --soft: #E2E7DC;           /* BOSS Soft Green */
+  --bg: #E2E7DC; --surface: #ffffff; --surface-2: #F2F5EF; --ink: #000000; --head: #0D3932; --ink-2: #444749; --muted: #5A5A5A;
+  --line: #DCE3D5; --line-2: #B9C6B0; --accent: #226E55; --accent-ink: #ffffff; --accent-wash: #E9EFE3;
+  --s1: #226E55; --s2: #395AA2; --s3: #DC8B7A; --s4: #69372B;
+  --good: #2E8B3E; --warn: #E8A317; --crit: #B74433; --good-ink: #226E55; --warn-ink: #8A5A00; --crit-ink: #B74433;
+  --hm-n3: #395AA2; --hm-n2: #7FACC6; --hm-n1: #C9DCE8; --hm-0: #EEF1EA; --hm-p1: #F7CC9D; --hm-p2: #DC8B7A; --hm-p3: #B74433;
+  --seq0: #E2E7DC; --seq1: #C3DCAE; --seq2: #A1D377; --seq3: #6FA889; --seq4: #3E8467; --seq5: #226E55; --seq6: #0D3932;
+  --band: rgba(34,110,85,.14);
+  --radius: 5px;
+  --font-ui: "Mona Sans", Arial, Helvetica, sans-serif;
+  --font-cond: "Mona Sans", "Arial Narrow", Arial, Helvetica, sans-serif;
+  --font-mono: "Mona Sans", Arial, Helvetica, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --brand: #0D3932; --brand-ink: #ffffff;
+  --bg: #071E1A; --surface: #0D3932; --surface-2: #12463D; --ink: #ffffff; --head: #ffffff; --ink-2: #D3DDD6; --muted: #A3B5AC;
+  --line: #1B5045; --line-2: #2C6457; --accent: #A1D377; --accent-ink: #0D3932; --accent-wash: #14493F;
+  --s1: #A1D377; --s2: #7FACC6; --s3: #F7CC9D; --s4: #DC8B7A;
+  --good: #A1D377; --warn: #F2B53A; --crit: #E07A68; --good-ink: #A1D377; --warn-ink: #F2B53A; --crit-ink: #F09A88;
+  --hm-n3: #7FACC6; --hm-n2: #395AA2; --hm-n1: #22405E; --hm-0: #1A3F37; --hm-p1: #5B2F27; --hm-p2: #B74433; --hm-p3: #DC8B7A;
+  --seq0: #12463D; --seq1: #1E5A4B; --seq2: #226E55; --seq3: #3E8467; --seq4: #6FA889; --seq5: #A1D377; --seq6: #E2E7DC;
+  --band: rgba(161,211,119,.16);
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --brand: #0D3932; --brand-ink: #ffffff;
+  --bg: #071E1A; --surface: #0D3932; --surface-2: #12463D; --ink: #ffffff; --head: #ffffff; --ink-2: #D3DDD6; --muted: #A3B5AC;
+  --line: #1B5045; --line-2: #2C6457; --accent: #A1D377; --accent-ink: #0D3932; --accent-wash: #14493F;
+  --s1: #A1D377; --s2: #7FACC6; --s3: #F7CC9D; --s4: #DC8B7A;
+  --good: #A1D377; --warn: #F2B53A; --crit: #E07A68; --good-ink: #A1D377; --warn-ink: #F2B53A; --crit-ink: #F09A88;
+  --hm-n3: #7FACC6; --hm-n2: #395AA2; --hm-n1: #22405E; --hm-0: #1A3F37; --hm-p1: #5B2F27; --hm-p2: #B74433; --hm-p3: #DC8B7A;
+  --seq0: #12463D; --seq1: #1E5A4B; --seq2: #226E55; --seq3: #3E8467; --seq4: #6FA889; --seq5: #A1D377; --seq6: #E2E7DC;
+  --band: rgba(161,211,119,.16);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-feature-settings: "ss03"; font-size: 14px; line-height: 1.45; }
+.page { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 18px 48px; display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 600px) { .page { padding-inline: 16px; } }
+h1, h2, h3 { font-family: var(--font-ui); font-weight: 700; margin: 0; text-wrap: balance; color: var(--head); }
+h1 { font-size: 26px; line-height: 1.15; }
+h2 { font-size: 18px; }
+h3 { font-size: 15px; }
+.label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.mono { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.note { font-size: 12.5px; color: var(--ink-2); max-width: 80ch; margin: 0; }
+button, select, input { font: inherit; color: inherit; font-feature-settings: "ss03"; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header band — BOSS Dark Green with the white logo */
+.brandbar { background: var(--brand); color: var(--brand-ink); }
+.brandbar-in { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 6px 18px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 28px; }
+@media (max-width: 600px) { .brandbar-in { padding-inline: 16px; } }
+.brand-left { display: flex; align-items: center; gap: 6px 18px; flex-wrap: wrap; min-width: 0; }
+.brand-logo { display: block; height: 72px; width: auto; margin-left: -14px; }
+.machine { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-bottom: 4px; }
+.machine .label { color: var(--lush); }
+.brandbar h1 { color: #ffffff; }
+.meta { display: flex; flex-wrap: wrap; gap: 2px 18px; color: rgba(255,255,255,.78); font-size: 13px; }
+.meta b { color: #ffffff; font-weight: 600; }
+.meta .muted { color: rgba(255,255,255,.6); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; padding-bottom: 4px; }
+.loc { display: flex; flex-direction: column; gap: 3px; }
+.loc .label { color: rgba(255,255,255,.75); }
+.loc input { border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #ffffff; border-radius: var(--radius); padding: 7px 10px; width: 190px; max-width: 100%; }
+.loc input::placeholder { color: rgba(255,255,255,.55); }
+.btn { border: 1px solid var(--line-2); background: var(--surface); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--lush); color: var(--brand); border-color: var(--lush); }
+.btn.primary:hover { filter: brightness(1.06); }
+/* Secondary buttons on the Dark Green header band: outlined like the Location field */
+.brandbar .btn:not(.primary) { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.35); color: #ffffff; }
+.brandbar .btn:not(.primary):hover { border-color: var(--lush); }
+
+/* Filter row */
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--line-2); white-space: nowrap; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg button:not([aria-pressed="true"]):hover { background: var(--accent-wash); }
+.dates { display: inline-flex; align-items: center; gap: 6px; }
+.dates input, select.sel { border: 1px solid var(--line-2); background: var(--surface); border-radius: var(--radius); padding: 5px 8px; }
+.filters .spacer { flex: 1; }
+.period-text { color: var(--ink-2); font-size: 13px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line-2); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.tabs button { border: 0; background: transparent; padding: 9px 14px; cursor: pointer; font-weight: 700; font-size: 15px; color: var(--ink-2); border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--head); border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--head); }
+.tabs .count { font-weight: 600; font-size: 11px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0 6px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.tabs .count.crit { color: var(--crit-ink); border-color: color-mix(in srgb, var(--crit) 40%, transparent); }
+
+.panel { display: flex; flex-direction: column; gap: 16px; }
+.plate { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.plate-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+
+/* KPI strip */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.kpi { background: var(--surface); padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; border-top: 3px solid var(--forest); }
+.kpi .v { font-weight: 700; font-size: 28px; line-height: 1.1; color: var(--head); font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 15px; font-weight: 500; color: var(--ink-2); margin-left: 3px; }
+.kpi .s { font-size: 12px; color: var(--ink-2); }
+.kpi.alert { border-top-color: var(--crit); }
+.kpi.alert .v { color: var(--crit-ink); }
+
+/* Channel facts */
+.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 18px; }
+.fact { display: flex; flex-direction: column; gap: 1px; }
+.fact .v { font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 600; color: var(--head); }
+.fact .s { font-size: 11.5px; color: var(--muted); }
+
+/* Tables — Mona Sans condensed for compact data */
+.tscroll { overflow-x: auto; margin-inline: -16px; padding-inline: 16px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-stretch: 87.5%; }
+th { text-align: left; font-size: 12px; color: var(--head); font-weight: 700; padding: 7px 10px; background: var(--soft); white-space: nowrap; }
+:root[data-theme="dark"] th { background: var(--surface-2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) th { background: var(--surface-2); } }
+th:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+th:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+th.num, td.num { text-align: right; }
+th[data-sort] { cursor: pointer; user-select: none; }
+th[data-sort]:hover { color: var(--accent); }
+th .arrow { font-size: 9px; margin-left: 3px; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; }
+td.textcell { white-space: normal; min-width: 220px; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--accent-wash); }
+tr.sel td { background: var(--accent-wash); }
+.chip { font-size: 12px; font-weight: 600; border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 6px; background: var(--surface-2); color: var(--head); font-stretch: 100%; }
+.flag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; border-radius: 4px; padding: 1px 7px; white-space: nowrap; font-stretch: 100%; }
+.flag.crit { color: var(--crit-ink); background: color-mix(in srgb, var(--crit) 13%, transparent); }
+.flag.warn { color: var(--warn-ink); background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.flag.ok { color: var(--good-ink); background: color-mix(in srgb, var(--good) 13%, transparent); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+.status svg { flex: none; }
+.status.ok { color: var(--good-ink); } .status.watch { color: var(--warn-ink); } .status.check { color: var(--crit-ink); } .status.none { color: var(--muted); }
+.delta.up { color: var(--crit-ink); } .delta.down { color: var(--s2); }
+.inbar { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.inbar .track { position: relative; flex: 1; height: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; min-width: 60px; }
+.inbar .fill { height: 100%; background: var(--forest); border-radius: 0 3px 3px 0; }
+.inbar .fill.low { background: var(--crit); }
+.inbar .minmark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--head); }
+.inbar .val { font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
+.effv { font-variant-numeric: tabular-nums; }
+.effv.low { color: var(--crit-ink); font-weight: 600; }
+.effv.mid { color: var(--warn-ink); font-weight: 600; }
+
+/* Level board */
+.lvl-row { display: grid; grid-template-columns: 30px 62px minmax(120px, 1fr) 92px 92px 98px; align-items: center; gap: 10px; padding: 5px 6px; border-radius: var(--radius); cursor: pointer; }
+.lvl-row:hover, .lvl-row.sel { background: var(--accent-wash); }
+.lvl-row .bar { position: relative; height: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+.lvl-row .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--forest); border-radius: 0 4px 4px 0; }
+.lvl-row .bar .fill.low { background: var(--crit); }
+.lvl-row .bar .fill.soon { background: var(--warn); }
+.lvl-row .bar .minmark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--head); }
+.lvl-head { display: grid; grid-template-columns: 30px 62px minmax(120px, 1fr) 92px 92px 98px; gap: 10px; padding: 0 6px 4px; }
+@media (max-width: 640px) { .lvl-row, .lvl-head { grid-template-columns: 26px 46px minmax(70px, 1fr) 84px 62px; } .lvl-row > :last-child, .lvl-head > :last-child { display: none; } }
+
+/* Charts */
+.chart { position: relative; width: 100%; min-width: 0; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-family: var(--font-ui); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.legend i.dash { background: repeating-linear-gradient(90deg, var(--ink-2) 0 4px, transparent 4px 7px); }
+.legend i.tri { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid var(--crit); border-radius: 0; background: none; }
+.legend i.tick { width: 3px; height: 11px; background: var(--accent); }
+.legend i.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.legend i.vl { width: 2px; height: 12px; background: var(--ink-2); }
+.tip { position: fixed; z-index: 50; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(13,57,50,.18); padding: 8px 10px; font-size: 12.5px; max-width: 320px; }
+.tip .t { font-weight: 700; margin-bottom: 4px; font-size: 13.5px; color: var(--head); }
+.tip .r { display: flex; justify-content: space-between; gap: 14px; }
+.tip .r span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+.tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.tip .ev { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; color: var(--ink-2); }
+
+/* Channel picker */
+.picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker button { border: 1px solid var(--line-2); background: var(--surface); border-radius: var(--radius); padding: 4px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--head); }
+.picker button .n { color: var(--muted); font-weight: 500; }
+.picker button[aria-pressed="true"] { border-color: var(--forest); box-shadow: inset 0 0 0 1px var(--forest); background: var(--accent-wash); }
+.picker button .sw { width: 10px; height: 10px; border-radius: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.controls label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.machine-type { font-size: 13px; color: var(--ink-2); }
+.machine-type b { color: var(--head); font-weight: 700; }
+
+.heat-wrap { overflow-x: auto; }
+.heat-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.heat-legend .ramp { display: inline-flex; }
+.heat-legend .ramp i { width: 22px; height: 10px; }
+
+/* Start screen */
+.welcome { display: flex; flex-direction: column; gap: 16px; padding-block: 8px 24px; }
+.welcome-drop { background: var(--surface); border: 2px dashed var(--line-2); border-radius: var(--radius); padding: 44px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; color: var(--forest); }
+.welcome-drop h2 { font-size: 22px; }
+.welcome-drop .note { max-width: 56ch; }
+.btn.big { padding: 10px 18px; font-size: 15px; margin-top: 6px; }
+.welcome-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
+.welcome-steps > div { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.welcome-steps b { color: var(--head); }
+.welcome-steps .note { margin-top: 2px; }
+.stepnr { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #ffffff; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+:root[data-theme="dark"] .stepnr { background: var(--lush); color: var(--brand); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stepnr { background: var(--lush); color: var(--brand); } }
+
+input[type="search"] { border: 1px solid var(--line-2); background: var(--surface); border-radius: var(--radius); padding: 6px 10px; min-width: 0; width: min(320px, 100%); }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+details.howto { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+details.howto summary { cursor: pointer; font-weight: 600; color: var(--head); }
+details.howto ol { margin: 10px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; }
+.drop-hint { position: fixed; inset: 0; background: color-mix(in srgb, var(--brand) 30%, transparent); border: 3px dashed var(--lush); z-index: 60; display: grid; place-items: center; font-size: 22px; font-weight: 700; color: #ffffff; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--brand); color: #ffffff; padding: 9px 14px; border-radius: var(--radius); z-index: 70; font-size: 13px; max-width: min(560px, calc(100vw - 32px)); box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.busy { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 70%, transparent); }
+.busy > div { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 14px 18px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Shop picker for the backups on the file share */
+dialog.share-dlg { border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface); color: var(--ink); padding: 16px; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 64px); box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+dialog.share-dlg[open] { display: flex; flex-direction: column; gap: 12px; }
+dialog.share-dlg::backdrop { background: color-mix(in srgb, var(--brand) 35%, transparent); }
+.share-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+[data-share-note] { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+@media (prefers-reduced-motion: no-preference) { .tabs button, .btn, .seg button { transition: background-color .12s, border-color .12s, color .12s; } }
+</style>
+
+<header class="brandbar">
+  <div class="brandbar-in">
+    <div class="brand-left">
+      <img class="brand-logo" src="data:image/png;base64,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G/cAAADv1oe7uzvvPgAAAAAAwCOc8gsAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAACQQUAAAAAACAQVAAAAAAAAAJBBQAAAAAAIBBUAAAAAAAAAkEFAAAAAAAgEFQAAAAAAAAeMwzD/9JJikbnwoRwAAAAAElFTkSuQmCC" alt="BOSS paints">
+      <div class="machine">
+        <span class="label">Dispenser service analysis</span>
+        <h1 id="m-title">HA Dispenser Insights</h1>
+        <div class="meta" id="m-meta"></div>
+      </div>
+    </div>
+    <div class="actions">
+      <label class="loc" for="loc-in" data-needs-data hidden><span class="label">Location</span><input id="loc-in" type="text" placeholder="Shop name" autocomplete="off"></label>
+      <label class="btn primary" for="file-in" title="Choose a copy of DeviceDriverDatabase.mdf">
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Open .mdf file
+      </label>
+      <input type="file" id="file-in" accept=".mdf,.json" hidden>
+      <button class="btn" id="share-btn" type="button" title="Choose a shop from the backups on the file share" hidden>
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.5H14v6.5H2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        Choose shop
+      </button>
+    </div>
+  </div>
+</header>
+<div class="page">
+<section class="welcome" id="welcome">
+    <div class="welcome-drop" id="welcome-drop">
+      <svg width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Zm0 0v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      <h2>Open a dispenser database to start</h2>
+      <p class="note">Choose a copy of <span class="mono"><b>DeviceDriverDatabase.mdf</b></span> from the dispenser PC, or drop it here. The file is read inside your browser and is not uploaded anywhere.</p>
+      <label class="btn primary big" for="file-in">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Open .mdf file
+      </label>
+    </div>
+    <section class="plate" id="share-pick" hidden>
+      <div class="plate-head"><h2>Or choose a shop from the file share</h2>
+        <div class="share-tools"><input type="search" data-share-q placeholder="Filter shop or PC" aria-label="Filter shops"><button class="btn" type="button" data-share-refresh>Refresh</button></div></div>
+      <div class="tscroll" data-share-list></div>
+      <p class="note" data-share-note></p>
+    </section>
+    <div class="welcome-steps">
+      <div><span class="stepnr">1</span><div><b>Choose a shop</b><p class="note">Pick a shop from the file share above, or open a copy of <span class="mono">DeviceDriverDatabase.mdf</span>. To open the live file on a dispenser PC, start with <span class="mono">Start HA Dispenser Insights.cmd</span>; it closes <span class="mono">it_pos_app.exe</span> first. The <span class="mono">_Log.ldf</span> file is not needed.</p></div></div>
+      <div><span class="stepnr">2</span><div><b>Open it here</b><p class="note">Reading takes a few seconds. No SQL Server or LocalDB is needed.</p></div></div>
+      <div><span class="stepnr">3</span><div><b>Check the machine</b><p class="note">Channel condition, Autodrive 2 efficiency, colorant levels and errors, per period.</p></div></div>
+    </div>
+  </section>
+
+  <div class="filters" role="group" aria-label="Period" data-needs-data hidden>
+    <span class="label">Period</span>
+    <div class="seg" id="presets">
+      <button data-p="all">All data</button>
+      <button data-p="365">12 months</button>
+      <button data-p="90">90 days</button>
+      <button data-p="30">30 days</button>
+    </div>
+    <div class="dates">
+      <input type="date" id="d-from" aria-label="From date">
+      <span class="muted">to</span>
+      <input type="date" id="d-to" aria-label="To date">
+    </div>
+    <span class="spacer"></span>
+    <span class="period-text" id="period-text"></span>
+  </div>
+
+  <nav class="tabs" role="tablist" id="tabs" data-needs-data hidden>
+    <button role="tab" data-tab="overview">Channel health</button>
+    <button role="tab" data-tab="autodrive">Autodrive 2</button>
+    <button role="tab" data-tab="levels">Colorant levels</button>
+    <button role="tab" data-tab="errors">Errors</button>
+    <button role="tab" data-tab="usage">Usage</button>
+    <button role="tab" data-tab="climate">Climate</button>
+  </nav>
+
+  <main id="view" class="panel" data-needs-data hidden></main>
+
+  <details class="howto" data-needs-data hidden>
+    <summary>How reading a .mdf file works</summary>
+    <ol>
+      <li>Start the tool with <span class="mono">Start HA Dispenser Insights.cmd</span>. When you open a database, it checks whether <span class="mono">it_pos_app.exe</span> is running and closes it, because the dispenser software locks the file. If you open this page directly, close the dispenser software yourself or use a backup copy of the file. The <span class="mono">_Log.ldf</span> file is not needed.</li>
+      <li>Click <b>Open .mdf file</b> or drop the file anywhere on this page. The file is read inside your browser and is not uploaded anywhere.</li>
+      <li>Type the shop name under <b>Location</b>. This browser remembers it for that machine's serial number.</li>
+    </ol>
+    <p class="note">The reader decodes the SQL Server data file directly, so no SQL Server or LocalDB is needed. It was checked row by row against SQL Server on an HA480 database (SQL Server 2012 file format). If a file can't be read, the page tells you why.</p>
+  </details>
+</div>
+<dialog class="share-dlg" id="share-dlg" aria-labelledby="share-dlg-t">
+  <div class="plate-head"><h2 id="share-dlg-t">Choose a shop</h2>
+    <div class="share-tools"><input type="search" data-share-q placeholder="Filter shop or PC" aria-label="Filter shops"><button class="btn" type="button" data-share-refresh>Refresh</button><button class="btn" type="button" data-close>Close</button></div></div>
+  <div class="tscroll" data-share-list></div>
+  <p class="note" data-share-note></p>
+</dialog>
+<div class="tip" id="tip" hidden></div>
+<div class="busy" id="busy" hidden role="status"><div><span class="spinner" aria-hidden="true"></span><span id="busy-text">Reading database…</span></div></div>
+
+<script>
+/* ---------- SQL Server .mdf reader (runs fully in the browser) ----------
+   Reads the 8 KB pages of a detached/copied data file, finds tables through the
+   system catalog (sysschobjs, sysrowsets, sysallocunits, sysrscols, syscolpars)
+   and decodes the rows of the tables the dispenser software writes. */
+const MDF = (() => {
+  const PAGE = 8192, DAYMS = 864e5;
+  const DT1900 = -2208988800000, DT0001 = -62135596800000;
+  const u16dec = new TextDecoder('utf-16le'), latin = new TextDecoder('latin1');
+  class MdfError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
+
+  function open(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf), n = Math.floor(buf.byteLength / PAGE);
+    if (n < 16 || u8[1] !== 15 || u8[9 * PAGE + 1] !== 13) throw new MdfError('not-mdf', 'This is not a SQL Server data file (.mdf).');
+    const version = dv.getUint16(9 * PAGE + 100, true);
+    const allocated = p => { const pfs = p < 8088 ? 1 : Math.floor(p / 8088) * 8088; const o = pfs * PAGE + 100 + (p - (pfs === 1 ? 0 : pfs)); return o < u8.length && (u8[o] & 0x40) !== 0; };
+    // Leaf data pages per allocation unit (m_objId / m_indexId from the page header)
+    const groups = new Map();
+    for (let p = 0; p < n; p++) {
+      const o = p * PAGE;
+      if (u8[o] !== 1 || u8[o + 1] !== 1 || u8[o + 3] !== 0 || !allocated(p)) continue;
+      const k = dv.getInt32(o + 24, true) + '/' + dv.getUint16(o + 6, true);
+      let a = groups.get(k); if (!a) groups.set(k, a = []); a.push(p);
+    }
+    function* records(key) {
+      for (const p of groups.get(key) || []) {
+        const o = p * PAGE, slots = dv.getUint16(o + 22, true);
+        for (let s = 0; s < slots; s++) {
+          const ro = dv.getUint16(o + PAGE - 2 * (s + 1), true);
+          if (ro < 96 || ro >= PAGE - 4) continue;
+          const r = o + ro, st = u8[r], type = (st >> 1) & 7;
+          if (type !== 0 && type !== 1) continue;            // primary or forwarded data records only
+          const fixEnd = dv.getUint16(r + 2, true);
+          const ncol = dv.getUint16(r + fixEnd, true), nb = r + fixEnd + 2;
+          const after = nb + ((ncol + 7) >> 3);
+          const varCount = st & 0x20 ? dv.getUint16(after, true) : 0;
+          yield { r, fixEnd, ncol, nb: st & 0x10 ? nb : 0, varCount, varTab: after + 2 };
+        }
+      }
+    }
+    const isNull = (rec, bit) => { const i = bit - 1; if (i >= rec.ncol) return true; return rec.nb ? ((u8[rec.nb + (i >> 3)] >> (i & 7)) & 1) === 1 : false; };
+    function varRange(rec, i) {
+      if (i >= rec.varCount) return null;
+      const end = dv.getUint16(rec.varTab + 2 * i, true);
+      if (end & 0x8000) return null;                        // stored off-row (LOB / row overflow)
+      const start = i === 0 ? rec.varTab + 2 * rec.varCount - rec.r : dv.getUint16(rec.varTab + 2 * (i - 1), true) & 0x7fff;
+      return [rec.r + start, rec.r + end];
+    }
+    const nstr = (rec, i) => { const v = varRange(rec, i); return v ? u16dec.decode(u8.subarray(v[0], v[1])) : null; };
+
+    // System catalog
+    const objs = new Map();
+    for (const rec of records('34/1')) {
+      const type = String.fromCharCode(u8[rec.r + 17], u8[rec.r + 18]).trim();
+      if (type === 'U') objs.set((nstr(rec, 0) || '').toLowerCase(), dv.getInt32(rec.r + 4, true));
+    }
+    const rowsets = new Map();
+    for (const rec of records('5/0')) { const id = dv.getInt32(rec.r + 13, true); (rowsets.get(id) || rowsets.set(id, []).get(id)).push({ rs: dv.getBigUint64(rec.r + 4, true), minor: dv.getInt32(rec.r + 17, true) }); }
+    const units = new Map();
+    for (const rec of records('7/0')) { const owner = dv.getBigUint64(rec.r + 13, true).toString(); (units.get(owner) || units.set(owner, []).get(owner)).push({ auid: dv.getBigUint64(rec.r + 4, true), type: u8[rec.r + 12] }); }
+    const rscols = new Map();
+    for (const rec of records('3/0')) {
+      const rs = dv.getBigUint64(rec.r + 4, true).toString();
+      (rscols.get(rs) || rscols.set(rs, []).get(rs)).push({ rscolid: dv.getInt32(rec.r + 12, true), hbcolid: dv.getInt32(rec.r + 16, true), ti: dv.getInt32(rec.r + 28, true), off: dv.getInt16(rec.r + 44, true), nullbit: dv.getInt32(rec.r + 48, true), bitpos: dv.getInt16(rec.r + 52, true) });
+    }
+    const colpars = new Map();
+    for (const rec of records('41/1')) {
+      const id = dv.getInt32(rec.r + 4, true);
+      if (dv.getInt16(rec.r + 8, true) !== 0) continue;
+      (colpars.get(id) || colpars.set(id, []).get(id)).push({ colid: dv.getInt32(rec.r + 10, true), xtype: u8[rec.r + 14], name: nstr(rec, 0) });
+    }
+
+    function table(name) {
+      const id = objs.get(name.toLowerCase()); if (id == null) return null;
+      const rs = (rowsets.get(id) || []).find(x => x.minor <= 1); if (!rs) return null;
+      const au = (units.get(rs.rs.toString()) || []).find(a => a.type === 1); if (!au) return null;
+      const key = Number((au.auid >> 16n) & 0xffffffffn) + '/' + Number(au.auid >> 48n);
+      const names = new Map((colpars.get(id) || []).map(c => [c.colid, c.name]));
+      const cols = new Map();
+      for (const c of rscols.get(rs.rs.toString()) || []) { const nm = names.get(c.hbcolid) ?? names.get(c.rscolid); if (nm) cols.set(nm.toLowerCase(), c); }
+      const reader = colName => {
+        const c = cols.get(colName.toLowerCase()); if (!c) return () => null;
+        const t = c.ti & 0xff, nb = c.nullbit & 0xffff;   // high word holds key flags
+        if (c.off < 0) {
+          const vi = -c.off - 1, wide = t === 231 || t === 239;
+          return rec => { if (isNull(rec, nb)) return null; const v = varRange(rec, vi); return v ? (wide ? u16dec : latin).decode(u8.subarray(v[0], v[1])) : null; };
+        }
+        const o = c.off;
+        return rec => {
+          if (isNull(rec, nb) || o >= rec.fixEnd) return null;
+          const a = rec.r + o;
+          switch (t) {
+            case 56: return dv.getInt32(a, true);
+            case 52: return dv.getInt16(a, true);
+            case 48: return u8[a];
+            case 127: return Number(dv.getBigInt64(a, true));
+            case 62: return dv.getFloat64(a, true);
+            case 59: return dv.getFloat32(a, true);
+            case 104: return (u8[a] >> c.bitpos) & 1;
+            case 61: return DT1900 + dv.getInt32(a + 4, true) * DAYMS + Math.round(dv.getInt32(a, true) * 10 / 3);
+            case 58: return DT1900 + dv.getUint16(a + 2, true) * DAYMS + dv.getUint16(a, true) * 60000;
+            case 40: return DT0001 + (u8[a] | u8[a + 1] << 8 | u8[a + 2] << 16) * DAYMS;
+            default: return null;
+          }
+        };
+      };
+      return { has: n => cols.has(n.toLowerCase()), reader, rows: () => records(key) };
+    }
+    return { version, table, pages: n };
+  }
+
+  /* Turn a DeviceDriverDatabase.mdf into the data set the views use */
+  function toRaw(buf, fileName) {
+    const db = open(buf);
+    const T = {};
+    for (const n of ['Devices', 'EventTypes', 'EventLog', 'EventLogFloatAttributes', 'EventLogStringAttributes']) {
+      T[n] = db.table(n);
+      if (!T[n]) throw new MdfError('schema', `This database has no ${n} table, so it doesn't look like a Fluid Management DeviceDriverDatabase.`);
+    }
+    const all = (tbl, cols) => { const rd = cols.map(c => tbl.reader(c)); const out = []; for (const rec of tbl.rows()) out.push(rd.map(f => f(rec))); return out; };
+    const devices = all(T.Devices, ['Id', 'SerialNumber', 'Description', 'Connected', 'DispenseCycles']);
+    if (!devices.length) throw new MdfError('empty', 'The Devices table is empty.');
+    const dev = devices.filter(d => d[3] === 1).sort((a, b) => b[0] - a[0])[0] || devices.sort((a, b) => b[0] - a[0])[0];
+    const devId = dev[0];
+    const typeNum = new Map(all(T.EventTypes, ['Id', 'Number']).map(([id, n]) => [id, n]));
+    const WANT = new Set([108, 104, 105, 106, 128, 130, 139, 23, 29, 142, 24, 34]);
+    const ev = new Map();
+    { const el = T.EventLog, rId = el.reader('Id'), rDev = el.reader('DeviceId'), rEv = el.reader('EventId'), rDate = el.reader('Date');
+      for (const rec of el.rows()) { if (rDev(rec) !== devId) continue; const num = typeNum.get(rEv(rec)); if (WANT.has(num)) ev.set(rId(rec), { id: rId(rec), num, t: rDate(rec), f: null, s: null }); } }
+    { const a = T.EventLogFloatAttributes, rE = a.reader('EventLogId'), rI = a.reader('Index'), rV = a.reader('Value');
+      for (const rec of a.rows()) { const e = ev.get(rE(rec)); if (e) (e.f || (e.f = []))[rI(rec)] = rV(rec); } }
+    { const a = T.EventLogStringAttributes, rE = a.reader('EventLogId'), rI = a.reader('Index'), rV = a.reader('Value');
+      for (const rec of a.rows()) { const e = ev.get(rE(rec)); if (e) (e.s || (e.s = []))[rI(rec)] = rV(rec); } }
+    const MIN_T = Date.UTC(2010, 0, 1);
+    const events = [...ev.values()].filter(e => e.t >= MIN_T).sort((a, b) => a.t - b.t || a.id - b.id);
+    const startEv = events.find(e => e.num === 108 || e.num === 128 || e.num === 130);
+    if (!startEv) throw new MdfError('nodata', 'No Autodrive, dispense or refill events were found for the connected dispenser.');
+    const t0 = Math.floor(startEv.t / DAYMS) * DAYMS;
+    const mins = t => Math.floor((t - t0) / 60000), days = t => Math.floor((t - t0) / DAYMS);
+    const F = (e, i) => e.f?.[i] ?? null, S = (e, i) => e.s?.[i] ?? null;
+    const num = v => v == null || v === '' || isNaN(+v) ? null : +v;
+    const iso = t => t == null ? null : new Date(t).toISOString().slice(0, 10);
+    const raw = { ad2m: [], ad2f: [], ad2e: [], disp: [], jobs: [], refill: [], errs: [], climate: [], service: [], slack: [] };
+    const dispAgg = new Map(), jobAgg = new Map();
+    for (const e of events) {
+      if (e.t < t0) continue;
+      switch (e.num) {
+        case 108: raw.ad2m.push([mins(e.t), F(e, 1), F(e, 2), F(e, 3), F(e, 4), F(e, 5)]); break;
+        case 104: case 105: raw.ad2f.push([mins(e.t), F(e, 1), e.num, F(e, 2), F(e, 3), F(e, 4), F(e, 5), F(e, 6)]); break;
+        case 106: raw.ad2e.push([mins(e.t), F(e, 1), F(e, 2)]); break;
+        case 128: { const k = days(e.t) + '/' + S(e, 2); const a = dispAgg.get(k) || dispAgg.set(k, [days(e.t), num(S(e, 2)), 0, 0]).get(k); a[2] += F(e, 1) || 0; a[3]++; break; }
+        case 139: { const d = days(e.t); jobAgg.set(d, (jobAgg.get(d) || 0) + 1); break; }
+        case 130: raw.refill.push([mins(e.t), num(S(e, 1)), F(e, 1), F(e, 2), F(e, 3)]); break;
+        case 23: raw.errs.push([mins(e.t), S(e, 1), S(e, 2), S(e, 3), F(e, 4)]); break;
+        case 29: raw.climate.push([days(e.t), F(e, 1), F(e, 2), F(e, 3), F(e, 4)]); break;
+        case 142: raw.service.push([mins(e.t), num(S(e, 2)), 'Piston & tube replaced' + (S(e, 4) ? ': ' + S(e, 4) : '') + (S(e, 3) ? ` (${S(e, 3)})` : '')]); break;
+        case 24: raw.service.push([mins(e.t), null, 'Machine start-up, firmware ' + (S(e, 1) || '?')]); break;
+        case 34: raw.slack.push([mins(e.t), F(e, 1)]); break;
+      }
+    }
+    raw.disp = [...dispAgg.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    raw.jobs = [...jobAgg].sort((a, b) => a[0] - b[0]);
+    // Channels & canisters
+    raw.channels = [];
+    const tCh = db.table('Channels'), tCan = db.table('Canisters');
+    const minLvl = new Map(); for (const r of raw.refill) if (r[4] != null) minLvl.set(r[1], r[4]);
+    if (tCh) {
+      const cans = new Map(tCan ? all(tCan, ['Id', 'Colorant', 'CurrentLevel', 'LastRefillDate', 'AverageRefillDate']).map(c => [c[0], c]) : []);
+      const cols = ['Number', 'CanisterId', 'DeviceId', 'PumpTravelDistance', 'PistonTravelDistance', 'EfficiencyRating', 'IntakeFlowRatePercentage', 'DispenseFlowRatePercentage', 'ValveCycles', 'PistonIndicator', 'TubeDelta'];
+      for (const [n, canId, dId, pump, piston, effR, inPct, dPct, valve, pInd, tube] of all(tCh, cols)) {
+        if (dId != null && dId !== devId) continue;
+        const c = cans.get(canId) || [];
+        // [number, colorant, level now, last refill, avg refill, minimum level, pump travel, piston travel, efficiency rating, intake %, dispense %, valve cycles, piston indicator, tube delta]
+        raw.channels.push([n, c[1] || null, c[2] ?? null, iso(c[3]), iso(c[4]), minLvl.get(n) ?? null, pump, piston, effR, inPct, dPct, valve, pInd, tube]);
+      }
+      raw.channels.sort((a, b) => a[0] - b[0]);
+    }
+    // Canister level history: refills report the level after filling; dispenses (ml) lower it.
+    // Forward from each refill; before the first refill (or without refills) backward from the known level.
+    const lvlNow = new Map(raw.channels.map(c => [c[0], c[2]]));
+    const perCh = new Map();
+    for (const e of events) {
+      if (e.t < t0 || (e.num !== 128 && e.num !== 130)) continue;
+      const c = num(e.num === 128 ? S(e, 2) : S(e, 1)); if (c == null) continue;
+      (perCh.get(c) || perCh.set(c, []).get(c)).push(e.num === 128 ? { t: e.t, ml: F(e, 1) || 0 } : { t: e.t, add: F(e, 1) || 0, lvl: F(e, 2) });
+    }
+    raw.level = [];
+    for (const [c, list] of perCh) {
+      const pts = [], firstR = list.findIndex(x => x.lvl != null);
+      let L = firstR >= 0 ? list[firstR].lvl - list[firstR].add : lvlNow.get(c);
+      if (L != null) {
+        const back = [];
+        for (let i = (firstR >= 0 ? firstR : list.length) - 1; i >= 0; i--) { back.push([list[i].t, L]); L += list[i].ml / 1000; }
+        back.reverse(); pts.push(...back);
+      }
+      if (firstR >= 0) {
+        let lvl = null;
+        for (let i = firstR; i < list.length; i++) {
+          const x = list[i];
+          if (x.lvl != null) { pts.push([x.t, lvl ?? x.lvl - x.add, 'b'], [x.t, x.lvl, 'r']); lvl = x.lvl; }
+          else if (lvl != null) { lvl -= x.ml / 1000; pts.push([x.t, lvl]); }
+        }
+      }
+      // keep refill points and the last level of each day
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i], nx = pts[i + 1];
+        if (p[2] || !nx || nx[2] === 'b' || days(nx[0]) !== days(p[0])) raw.level.push([mins(p[0]), c, Math.round(p[1] * 1000) / 1000]);
+      }
+    }
+    raw.level.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    let firmware = null;
+    const tLog = db.table('ChangeLog');
+    if (tLog) { const fw = all(tLog, ['DeviceId', 'Attribute', 'Value', 'Date']).filter(r => r[0] === devId && r[1] === 'FIRMWARE' && r[2] && r[2] !== '..').sort((a, b) => b[3] - a[3]); firmware = fw[0]?.[2] ?? null; }
+    const now = new Date(), pad = x => String(x).padStart(2, '0');
+    raw.meta = { serial: dev[1], description: dev[2], location: '', dispenseCycles: dev[4], firmware, exported: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, source: fileName, t0: iso(t0), sqlVersion: db.version };
+    return raw;
+  }
+  return { open, toRaw, MdfError };
+})();
+
+</script>
+<script>
+(() => {
+'use strict';
+/* Shop names for the PC folders on the file share. The app shows the shop name instead of the PC name.
+   Add one line per dispenser PC: 'folder name on the share': 'shop name',  (upper/lower case doesn't matter) */
+const SHOP_NAMES = {
+  'PC30105-M2': 'Colora Kortrijk',
+};
+const DAY = 864e5, WEEK = 7 * DAY;
+const AD2_CODES = { 0: 'Pump filled less than 10%', 1: 'Air detected', 2: 'No pump', 3: 'Below minimal pump speed' };
+const SERIES = ['--s1', '--s2', '--s3', '--s4'];
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fDate = t => { const d = new Date(t); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+const fDateTime = t => { const d = new Date(t); return `${fDate(t)} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`; };
+const fIso = t => new Date(t).toISOString().slice(0, 10);
+const fNum = (v, dp = 0) => v == null || isNaN(v) ? '–' : v.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const fPct = v => v == null || isNaN(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(0) + '%';
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const quantile = (a, q) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
+const weekStart = t => { const d = Math.floor(t / DAY) * DAY; const dow = (new Date(d).getUTCDay() + 6) % 7; return d - dow * DAY; };
+const lowerBound = (arr, x) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < x) lo = m + 1; else hi = m; } return lo; };
+
+/* ---------- data preparation ---------- */
+let D;
+function prepare(raw) {
+  const t0 = Date.parse(raw.meta.t0 + 'T00:00:00Z');
+  const tm = m => t0 + m * 60000, td = d => t0 + d * DAY;
+  const ch = new Map();
+  for (const [n, col, lvl, lr, ar, minLvl, pump, piston, effRating, intakePct, dispPct] of raw.channels || [])
+    ch.set(n, { n, col: col || '', lvl, lastRefill: lr ? Date.parse(lr) : null, avgRefill: ar ? Date.parse(ar) : null, minLvl: minLvl ?? null, pump, piston, effRating, intakePct, dispPct });
+  const meas = new Map();
+  for (const [m, c, sp, p, v, tp] of raw.ad2m || []) {
+    if (!meas.has(c)) meas.set(c, { t: [], sp: [], p: [], v: [], tp: [] });
+    const o = meas.get(c); o.t.push(tm(m)); o.sp.push(sp); o.p.push(p); o.v.push(v); o.tp.push(tp);
+  }
+  const corr = (raw.ad2f || []).map(([m, c, k, s, ef, cv, inc, tp]) => ({ t: tm(m), c, k, kind: k === 105 ? 'Dispense' : 'Intake', s, ef, cv, inc, tp }));
+  const aerr = (raw.ad2e || []).map(([m, c, code]) => ({ t: tm(m), c, code }));
+  const disp = (raw.disp || []).map(([d, c, ml, n]) => ({ t: td(d), c, ml, n }));
+  const jobs = (raw.jobs || []).map(([d, n]) => ({ t: td(d), n }));
+  const refill = (raw.refill || []).map(([m, c, add, lvl, minLvl]) => ({ t: tm(m), c, add, lvl, minLvl }));
+  const errs = (raw.errs || []).map(([m, msg, ph, sh, c]) => ({ t: tm(m), msg: msg || '', ph: ph || '', sh: sh || '', c, group: errGroup(msg || '', sh) }));
+  const climate = (raw.climate || []).map(([d, a, b, c2, d2]) => ({ t: td(d), tmin: a, tmax: b, hmin: c2, hmax: d2 }));
+  const service = (raw.service || []).map(([m, c, text]) => ({ t: tm(m), c, text }));
+  const slack = (raw.slack || []).filter(([, v]) => v != null).map(([m, v]) => ({ t: tm(m), v }));
+  // level history per channel
+  const level = new Map();
+  for (const [m, c, l] of raw.level || []) { if (!level.has(c)) level.set(c, { t: [], v: [] }); const o = level.get(c); o.t.push(tm(m)); o.v.push(l); }
+  // minimum level: from the refill records when the channel table has none
+  for (const r of refill) { const c = ch.get(r.c); if (c && c.minLvl == null && r.minLvl != null) c.minLvl = r.minLvl; }
+  // intake efficiency history per channel (step series)
+  const eff = new Map();
+  for (const c of corr) { if (c.k !== 104 || c.ef == null) continue; if (!eff.has(c.c)) eff.set(c.c, []); eff.get(c.c).push([c.t, c.ef]); }
+  const allT = [...[...meas.values()].flatMap(o => [o.t[0], o.t[o.t.length - 1]]), ...jobs.map(j => j.t), ...disp.map(d => d.t), ...errs.map(e => e.t)].filter(Number.isFinite);
+  const minT = Math.min(...allT), maxT = Math.max(...allT);
+  const desc = raw.meta.description || '';
+  // Machine type comes from the device description in the file, e.g. "32HA480 883211"
+  const model = /HA\s?180/i.test(desc) ? 'HA180' : /HA\s?480/i.test(desc) ? 'HA480' : null;
+  const active = [...ch.values()].filter(c => c.col || meas.has(c.n)).map(c => c.n).sort((a, b) => a - b);
+  // daily use over the last 30 days of data (litres per day) for days-to-minimum
+  const useFrom = Math.floor(maxT / DAY) * DAY - 29 * DAY, use30 = new Map();
+  for (const d of disp) if (d.t >= useFrom) use30.set(d.c, (use30.get(d.c) || 0) + d.ml / 1000);
+  for (const c of ch.values()) {
+    c.perDay = (use30.get(c.n) || 0) / 30;
+    c.daysToMin = c.lvl != null && c.perDay > 0.0005 ? Math.max(0, (c.lvl - (c.minLvl || 0)) / c.perDay) : null;
+    c.low = c.lvl != null && c.minLvl != null && c.lvl <= c.minLvl;
+    const e = eff.get(c.n); c.effNow = c.intakePct ?? (e ? e[e.length - 1][1] : 100);
+    if (c.intakePct == null && !e) c.effNow = null;
+  }
+  return { meta: raw.meta, ch, meas, corr, aerr, disp, jobs, refill, errs, climate, service, slack, level, eff, minT: Math.floor(minT / DAY) * DAY, maxT, model, active, hasLevel: level.size > 0 };
+}
+function errGroup(msg, sh) {
+  const m = msg.match(/^on command "([^"]+)"/);
+  if (m) return 'Command timeout · ' + m[1].split('.').pop().replace(/Command$/, '');
+  const code = msg.match(/^(E\d+)\b/);
+  if (code && sh) return `${code[1]} ${sh}`;
+  const num = msg.match(/^(\d{4}):\s*(.*?)\.?\s*(Check.*)?$/);
+  if (num) return `${num[1]} ${num[2]}`;
+  return sh || msg.replace(/during .*$/i, '').trim() || 'Unknown';
+}
+const colOf = n => D.ch.get(n)?.col || '';
+const STROKE = { HA480: 16000 - 680, HA180: 6800 - 680 };
+function levelAt(c, t) { const o = D.level.get(c); if (!o) return null; const i = lowerBound(o.t, t + 1) - 1; return i >= 0 ? o.v[i] : null; }
+function effAt(c, t) { const e = D.eff.get(c); if (!e) return D.ch.get(c)?.effNow != null ? 100 : null; let v = 100; for (const [tt, ef] of e) { if (tt > t) break; v = ef; } return v; }
+function stepsOn(c, t) { const o = D.meas.get(c); if (!o) return null; const d0 = Math.floor(t / DAY) * DAY; const i = lowerBound(o.t, d0); return i < o.t.length && o.t[i] < d0 + DAY ? o.p[i] : null; }
+function effClass(v) { return v == null ? '' : v < 80 ? 'low' : v < 100 ? 'mid' : ''; }
+
+/* ---------- state ---------- */
+const S = { preset: 'all', from: 0, to: 0, tab: 'overview', sel: [], unit: 'steps', model: 'HA480', heat: 'rel', errQ: '', sort: { key: 'status', dir: -1 }, lvlSort: 'days', pumpSort: 'travel' };
+function setPreset(p) {
+  S.preset = p;
+  S.to = Math.floor(D.maxT / DAY) * DAY + DAY - 1;
+  S.from = p === 'all' ? D.minT : Math.max(D.minT, S.to + 1 - (+p) * DAY);
+}
+const inP = t => t >= S.from && t <= S.to;
+function ensureSel() {
+  if (!S.sel.length || !S.sel.every(n => D.active.includes(n))) {
+    const st = D.active.map(channelStats).sort((a, b) => b.statusRank - a.statusRank || (b.change ?? -9) - (a.change ?? -9));
+    S.sel = st.length ? [st[0].n] : [];
+  }
+}
+
+/* ---------- channel metrics ---------- */
+function channelStats(n) {
+  const o = D.meas.get(n), info = D.ch.get(n) || {};
+  const res = { n, col: colOf(n), count: 0, latest: null, latestT: null, recent: null, ref: null, change: null, spark: [], errs: 0, lastErr: null, errsRecent: 0, corr: 0, ml: 0, shots: 0, refills: 0, added: 0, lvl: info.lvl ?? null, minLvl: info.minLvl ?? null, low: !!info.low, daysToMin: info.daysToMin ?? null, eff: info.effNow ?? null, minEff: null, pump: info.pump ?? null, piston: info.piston ?? null };
+  const recentFrom = S.to + 1 - 14 * DAY;
+  if (o) {
+    const i0 = lowerBound(o.t, S.from), i1 = lowerBound(o.t, S.to + 1);
+    const recent = [], ref = [], weeks = new Map();
+    for (let i = i0; i < i1; i++) {
+      const v = o.p[i]; if (v == null) continue;
+      (o.t[i] >= recentFrom ? recent : ref).push(v);
+      const w = weekStart(o.t[i]); if (!weeks.has(w)) weeks.set(w, []); weeks.get(w).push(v);
+      res.latest = v; res.latestT = o.t[i];
+    }
+    res.count = i1 - i0;
+    res.recent = mean(recent);
+    res.ref = ref.length >= 10 ? median(ref) : null;
+    if (res.recent != null && res.ref) res.change = res.recent / res.ref - 1;
+    res.spark = [...weeks.entries()].map(([w, a]) => [w, median(a)]);
+  }
+  for (const e of D.aerr) if (e.c === n && inP(e.t)) { res.errs++; res.lastErr = e.t; if (e.t >= S.to + 1 - 30 * DAY) res.errsRecent++; }
+  for (const c of D.corr) if (c.c === n && inP(c.t)) { res.corr++; if (c.k === 104 && c.ef != null) res.minEff = Math.min(res.minEff ?? 100, c.ef); }
+  for (const d of D.disp) if (d.c === n && inP(d.t)) { res.ml += d.ml; res.shots += d.n; }
+  for (const r of D.refill) if (r.c === n && inP(r.t)) { res.refills++; res.added += r.add > 0 ? r.add : 0; }
+  res.status = !res.count ? 'none'
+    : (res.errsRecent > 0 || (res.change ?? 0) >= 0.35 || (res.eff != null && res.eff < 80)) ? 'check'
+    : ((res.change ?? 0) >= 0.2 || res.errs >= 3 || (res.eff != null && res.eff < 100)) ? 'watch' : 'ok';
+  res.statusRank = { check: 3, watch: 2, ok: 1, none: 0 }[res.status];
+  return res;
+}
+const STATUS_TEXT = { ok: 'OK', watch: 'Watch', check: 'Check', none: 'No data' };
+function statusHtml(s, withText = true) {
+  const icon = {
+    ok: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--good)"/></svg>',
+    watch: '<svg width="11" height="10" viewBox="0 0 11 10" aria-hidden="true"><path d="M5.5 0.6 10.6 9.4H0.4Z" fill="var(--warn)"/></svg>',
+    check: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.2" y="1.2" width="7.6" height="7.6" transform="rotate(45 5 5)" fill="var(--crit)"/></svg>',
+    none: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="var(--muted)" stroke-width="1.4"/></svg>'
+  }[s];
+  return `<span class="status ${s}">${icon}${withText ? STATUS_TEXT[s] : ''}</span>`;
+}
+function levelFlag(c) {
+  if (c.lvl == null) return '';
+  if (c.low) return '<span class="flag crit">At minimum</span>';
+  if (c.daysToMin != null && c.daysToMin < 7) return '<span class="flag warn">Refill soon</span>';
+  return '';
+}
+
+/* ---------- tooltip ---------- */
+const tip = $('#tip');
+function showTip(html, x, y) {
+  tip.innerHTML = html; tip.hidden = false;
+  const r = tip.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
+  let left = x + 14, top = y + 14;
+  if (left + r.width > vw - 8) left = x - r.width - 14;
+  if (top + r.height > vh - 8) top = y - r.height - 14;
+  tip.style.left = Math.max(8, left) + 'px'; tip.style.top = Math.max(8, top) + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+
+/* ---------- chart primitives ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+function niceTicks(min, max, count = 5) {
+  if (min === max) { max = min + 1; }
+  const span = max - min, step0 = span / count, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= count) || 10 * mag;
+  const ticks = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) ticks.push(+v.toFixed(10));
+  return { ticks, step };
+}
+function timeTicks(x0, x1, w) {
+  const spanD = (x1 - x0) / DAY, max = Math.max(2, Math.floor(w / 78)), out = [];
+  if (spanD > 75) {
+    const step = [1, 2, 3, 6, 12].find(s => spanD / 30.4 / s <= max) || 12;
+    const d = new Date(x0); let y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+    if (m > 11) { m = 0; y++; }
+    while (m % step) { m++; if (m > 11) { m = 0; y++; } }
+    for (;;) { const t = Date.UTC(y, m, 1); if (t > x1) break; out.push({ t, label: m === 0 || !out.length ? `${MON[m]} ${String(y).slice(2)}` : MON[m] }); m += step; if (m > 11) { m -= 12; y++; } }
+  } else {
+    const step = [1, 2, 7, 14].find(s => spanD / s <= max) || 14;
+    for (let t = Math.ceil(x0 / DAY) * DAY; t <= x1; t += step * DAY) { const d = new Date(t); out.push({ t, label: `${d.getUTCDate()} ${MON[d.getUTCMonth()]}` }); }
+  }
+  return out;
+}
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+
+/* timeChart: lines (optionally stepped), bands, bars, event markers, crosshair tooltip */
+function timeChart(host, o) {
+  host.innerHTML = '';
+  const W = Math.max(280, host.clientWidth), H = o.height || 260;
+  const lane = o.markers && o.markers.length ? 16 : 0;
+  const m = { l: 46, r: 12, t: 10 + lane, b: 24 + (o.bottomMarkers && o.bottomMarkers.length ? 12 : 0) };
+  const x0 = o.x0, x1 = o.x1, iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const vals = [];
+  for (const s of o.series || []) for (const p of s.pts) if (p[1] != null && p[0] >= x0 && p[0] <= x1) vals.push(p[1]);
+  for (const b of o.bands || []) for (const p of b.pts) if (p[0] >= x0 && p[0] <= x1) { if (p[1] != null) vals.push(p[1]); if (p[2] != null) vals.push(p[2]); }
+  for (const p of (o.bars?.pts || [])) if (p[0] >= x0 && p[0] <= x1) vals.push(p[1]);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': o.aria || '' }, host);
+  if (!vals.length && !o.domain) { const t = el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle' }, svg); t.textContent = o.emptyText || 'No data in this period'; return; }
+  let lo, hi, clipped = 0;
+  if (o.domain) { [lo, hi] = o.domain; }
+  else {
+    lo = o.zero ? 0 : Math.min(...vals); hi = Math.max(...vals);
+    if (o.clipQ) { const q = quantile(vals, o.clipQ) * 1.25; if (hi > q) { clipped = vals.filter(v => v > q).length; hi = q; } }
+    if (!o.zero) { const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad; }
+  }
+  const yt = niceTicks(lo, hi, Math.max(3, Math.floor(ih / 45)));
+  if (!o.domain) { lo = Math.min(lo, yt.ticks[0]); hi = Math.max(hi, yt.ticks[yt.ticks.length - 1]); }
+  const X = t => m.l + (t - x0) / (x1 - x0) * iw, Y = v => m.t + ih - (Math.max(lo, Math.min(v, hi)) - lo) / (hi - lo) * ih;
+  for (const v of yt.ticks) {
+    if (v < lo - 1e-9 || v > hi + 1e-9) continue;
+    el('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: css('--line'), 'stroke-width': 1 }, svg);
+    const t = el('text', { x: m.l - 6, y: Y(v) + 3.5, 'text-anchor': 'end' }, svg); t.textContent = o.yFmt ? o.yFmt(v) : fNum(v, yt.step < 1 ? 1 : 0);
+  }
+  el('line', { x1: m.l, x2: W - m.r, y1: m.t + ih, y2: m.t + ih, stroke: css('--line-2'), 'stroke-width': 1 }, svg);
+  for (const tk of timeTicks(x0, x1, iw)) {
+    el('line', { x1: X(tk.t), x2: X(tk.t), y1: m.t + ih, y2: m.t + ih + 4, stroke: css('--line-2') }, svg);
+    const t = el('text', { x: X(tk.t), y: m.t + ih + 15, 'text-anchor': 'middle' }, svg); t.textContent = tk.label;
+  }
+  if (o.yLabel) { const t = el('text', { x: m.l, y: m.t - lane - 1, 'text-anchor': 'start' }, svg); t.textContent = o.yLabel; }
+  const cid = 'c' + Math.random().toString(36).slice(2);
+  const cp = el('clipPath', { id: cid }, el('defs', {}, svg)); el('rect', { x: m.l, y: m.t - 1, width: iw, height: ih + 2 }, cp);
+  const g = el('g', { 'clip-path': `url(#${cid})` }, svg);
+  for (const v of o.vlines || []) if (v.t >= x0 && v.t <= x1) el('line', { x1: X(v.t), x2: X(v.t), y1: m.t, y2: m.t + ih, stroke: css('--ink-2'), 'stroke-width': 1.5, 'stroke-dasharray': '4 3' }, svg);
+  if (o.bars) {
+    const bw = Math.max(1, (o.bars.width / (x1 - x0)) * iw - 2);
+    for (const [t, v] of o.bars.pts) { if (t < x0 || t > x1 || !v) continue; const y = Y(v), h = Y(lo) - y; el('rect', { x: X(t) + 1, y, width: bw, height: Math.max(0, h), rx: Math.min(2, bw / 2), fill: o.bars.color }, g); }
+  }
+  for (const b of o.bands || []) {
+    const pts = b.pts.filter(p => p[0] >= x0 - DAY && p[0] <= x1 + DAY && p[1] != null && p[2] != null);
+    if (!pts.length) continue;
+    const top = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[2]).toFixed(1)}`).join('');
+    const bot = pts.slice().reverse().map(p => `L${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
+    el('path', { d: top + bot + 'Z', fill: b.fill }, g);
+    el('path', { d: top, fill: 'none', stroke: b.stroke, 'stroke-width': 1.25 }, g);
+    el('path', { d: pts.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(''), fill: 'none', stroke: b.stroke, 'stroke-width': 1.25, 'stroke-opacity': .6 }, g);
+  }
+  for (const s of o.series || []) {
+    let d = '', prev = null, prevV = null, firstX = null, lastX = null;
+    for (const [t, v] of s.pts) {
+      if (v == null || t < x0 - 3 * DAY - (s.step ? 1e15 : 0) || t > x1 + 3 * DAY) { prev = null; continue; }
+      const x = X(s.step ? Math.max(x0, t) : t);
+      if (s.step && prev != null) d += 'L' + x.toFixed(1) + ',' + Y(prevV).toFixed(1);
+      d += (prev != null && (s.step || t - prev < (o.gap || 4 * DAY)) ? 'L' : 'M') + x.toFixed(1) + ',' + Y(v).toFixed(1);
+      if (firstX == null) firstX = x; lastX = x; prev = t; prevV = v;
+    }
+    if (s.step && prev != null) { lastX = X(x1); d += 'L' + lastX.toFixed(1) + ',' + Y(prevV).toFixed(1); }
+    if (s.area && d && !/.M/.test(d)) { const base = Y(lo).toFixed(1); el('path', { d: `${d}L${lastX.toFixed(1)},${base}L${firstX.toFixed(1)},${base}Z`, fill: s.area, stroke: 'none' }, g); }
+    el('path', { d, fill: 'none', stroke: s.color, 'stroke-width': s.width || 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'stroke-dasharray': s.dash || '' }, g);
+  }
+  for (const mk of o.markers || []) {
+    if (mk.t < x0 || mk.t > x1) continue; const x = X(mk.t), y = m.t - lane + 3;
+    if (mk.shape === 'tri') el('path', { d: `M${x - 5},${y} L${x + 5},${y} L${x},${y + 9}Z`, fill: mk.color, stroke: css('--surface'), 'stroke-width': 1 }, svg);
+    else el('rect', { x: x - 1.25, y: y - 1, width: 2.5, height: 11, rx: 1, fill: mk.color }, svg);
+  }
+  for (const mk of o.bottomMarkers || []) {
+    if (mk.t < x0 || mk.t > x1) continue;
+    el('circle', { cx: X(mk.t), cy: H - 5, r: 3, fill: mk.color, stroke: css('--surface'), 'stroke-width': 1 }, svg);
+  }
+  if (clipped && o.clipNote !== false) { const t = el('text', { x: W - m.r, y: m.t - lane - 1, 'text-anchor': 'end' }, svg); t.textContent = `${clipped} value${clipped > 1 ? 's' : ''} above scale`; }
+  const cross = el('line', { y1: m.t, y2: m.t + ih, stroke: css('--ink-2'), 'stroke-width': 1, visibility: 'hidden' }, svg);
+  const dots = (o.series || []).map(s => el('circle', { r: 4, fill: s.color, stroke: css('--surface'), 'stroke-width': 2, visibility: 'hidden' }, svg));
+  const hit = el('rect', { x: m.l, y: 0, width: iw, height: H, fill: 'transparent' }, svg);
+  const tIdx = (o.series || []).map(s => s.pts.map(p => p[0]));
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) * (W / r.width);
+    const t = x0 + (sx - m.l) / iw * (x1 - x0);
+    let snapT = null; const rows = [];
+    (o.series || []).forEach((s, i) => {
+      if (s.noTip) return;
+      const arr = tIdx[i]; if (!arr.length) return;
+      let k;
+      if (s.step) { k = lowerBound(arr, t + 1) - 1; if (k < 0) { dots[i].setAttribute('visibility', 'hidden'); return; } }
+      else { k = lowerBound(arr, t); if (k > 0 && (k === arr.length || t - arr[k - 1] < arr[k] - t)) k--; }
+      const p = s.pts[k]; if (!p || p[1] == null || (!s.step && Math.abs(p[0] - t) > (o.snap || 3 * DAY))) { dots[i].setAttribute('visibility', 'hidden'); return; }
+      const px = s.step ? t : p[0];
+      if (snapT == null) snapT = px;
+      dots[i].setAttribute('cx', X(px)); dots[i].setAttribute('cy', Y(p[1])); dots[i].setAttribute('visibility', 'visible');
+      rows.push(`<div class="r"><span><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</span><span>${o.vFmt ? o.vFmt(p[1], s, p) : fNum(p[1])}</span></div>`);
+    });
+    if (o.bars) { const k = o.bars.pts.findIndex(p => t >= p[0] && t < p[0] + o.bars.width); if (k >= 0) { snapT = o.bars.pts[k][0]; rows.push(`<div class="r"><span>${esc(o.bars.name)}</span><span>${o.vFmt ? o.vFmt(o.bars.pts[k][1]) : fNum(o.bars.pts[k][1])}</span></div>`); } }
+    for (const b of o.bands || []) { let k = lowerBound(b.pts.map(p => p[0]), t - DAY / 2); const p = b.pts[k]; if (p && Math.abs(p[0] - t) < DAY) { snapT = p[0]; rows.push(`<div class="r"><span>${esc(b.name)}</span><span>${o.vFmt ? o.vFmt(p[1]) : fNum(p[1], 1)} – ${o.vFmt ? o.vFmt(p[2]) : fNum(p[2], 1)}</span></div>`); } }
+    const tol = 7 / iw * (x1 - x0);
+    const evs = [...(o.markers || []), ...(o.bottomMarkers || []), ...(o.vlines || [])].filter(mk => Math.abs(mk.t - t) <= tol).slice(0, 4);
+    if (snapT == null && !evs.length) { hideTip(); cross.setAttribute('visibility', 'hidden'); return; }
+    const ct = snapT ?? evs[0].t;
+    cross.setAttribute('x1', X(ct)); cross.setAttribute('x2', X(ct)); cross.setAttribute('visibility', 'visible');
+    const title = o.bars ? `Week of ${fDate(ct)}` : (o.dayTitle ? fDate(ct) : fDateTime(ct));
+    showTip(`<div class="t">${title}</div>${rows.join('')}${evs.map(e => `<div class="ev">${e.label}</div>`).join('')}`, ev.clientX, ev.clientY);
+  };
+  hit.addEventListener('pointermove', move);
+  hit.addEventListener('pointerleave', () => { hideTip(); cross.setAttribute('visibility', 'hidden'); dots.forEach(d => d.setAttribute('visibility', 'hidden')); });
+}
+function sparkline(pts, w = 100, h = 26) {
+  if (pts.length < 2) return '<span class="muted">–</span>';
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]).filter(v => v != null);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs); let lo = Math.min(...ys), hi = Math.max(...ys);
+  const cap = quantile(ys, 0.9) * 1.6; if (hi > cap) hi = cap; if (hi === lo) hi = lo + 1;
+  const X = t => 2 + (t - x0) / (x1 - x0 || 1) * (w - 6), Y = v => h - 3 - (Math.min(v, hi) - lo) / (hi - lo) * (h - 6);
+  const d = pts.filter(p => p[1] != null).map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
+  const last = pts[pts.length - 1];
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d} L${X(last[0]).toFixed(1)},${h - 1} L${X(pts[0][0]).toFixed(1)},${h - 1}Z" fill="var(--band)"/><path d="${d}" fill="none" stroke="var(--s1)" stroke-width="1.4" stroke-linejoin="round"/><circle cx="${X(last[0]).toFixed(1)}" cy="${Y(last[1]).toFixed(1)}" r="2.6" fill="var(--s1)"/></svg>`;
+}
+/* canister capacity ≈ highest level seen (refills fill the canister up) */
+function capOf(n) { const c = D.ch.get(n) || {}; return Math.max(maxLevel(n), c.lvl || 0) || null; }
+function levelBar(c) {
+  if (c.lvl == null) return '<span class="muted">–</span>';
+  const cap = capOf(c.n) || c.lvl || 1;
+  const w = Math.min(100, c.lvl / cap * 100), mk = c.minLvl != null ? `<span class="minmark" style="left:${Math.min(100, c.minLvl / cap * 100).toFixed(1)}%" title="Minimum ${fNum(c.minLvl, 2)} L"></span>` : '';
+  return `<div class="inbar" title="${fNum(c.lvl, 2)} of about ${fNum(cap, 1)} L"><div class="track"><div class="fill ${c.low ? 'low' : ''}" style="width:${w.toFixed(1)}%"></div>${mk}</div><span class="val">${fNum(c.lvl, 2)} L</span></div>`;
+}
+/* step series of intake efficiency for a channel, from the correction events */
+function effSeries(n, from) {
+  const e = D.eff.get(n) || [];
+  const pts = [[Math.min(from, e[0]?.[0] ?? from) - DAY, 100]];
+  for (const p of e) pts.push(p);
+  return pts;
+}
+
+/* ---------- header & filters ---------- */
+function renderHeader() {
+  const mt = D.meta;
+  $('#m-title').textContent = [mt.location, mt.description].filter(Boolean).join(' · ') || 'HA Dispenser Insights';
+  $('#m-meta').innerHTML = [
+    mt.description && `Machine <b class="mono">${esc(mt.description)}</b>`,
+    mt.serial && `Serial <b class="mono">${esc(mt.serial)}</b>`,
+    mt.firmware && `Firmware <b class="mono">${esc(mt.firmware)}</b>`,
+    mt.dispenseCycles != null && `Dispense cycles <b class="mono">${fNum(mt.dispenseCycles)}</b>`,
+    `Data <b>${fDate(D.minT)} – ${fDate(D.maxT)}</b>`,
+    mt.exported && `<span class="muted">Read ${esc(mt.exported)} from ${esc(mt.source || 'database')}</span>`
+  ].filter(Boolean).map(s => `<span>${s}</span>`).join('');
+  document.title = (mt.location ? mt.location + ' · ' : '') + 'HA Dispenser Insights';
+}
+function renderFilters() {
+  for (const b of $('#presets').children) b.setAttribute('aria-pressed', b.dataset.p === S.preset);
+  const f = $('#d-from'), t = $('#d-to');
+  f.min = t.min = fIso(D.minT); f.max = t.max = fIso(D.maxT);
+  f.value = fIso(S.from); t.value = fIso(S.to);
+  const days = Math.round((S.to + 1 - S.from) / DAY);
+  $('#period-text').textContent = `${fDate(S.from)} – ${fDate(S.to)} · ${fNum(days)} days`;
+}
+function renderTabs() {
+  const nCheck = D.active.map(channelStats).filter(c => c.status === 'check').length;
+  const nLow = D.active.filter(n => D.ch.get(n)?.low).length;
+  const nErr = D.aerr.filter(e => inP(e.t)).length;
+  const badge = { overview: nCheck, levels: nLow, errors: nErr };
+  for (const b of $('#tabs').children) {
+    b.setAttribute('aria-selected', b.dataset.tab === S.tab);
+    const base = b.dataset.label || (b.dataset.label = b.textContent);
+    const n = badge[b.dataset.tab];
+    b.innerHTML = esc(base) + (n ? `<span class="count crit">${n}</span>` : '');
+  }
+}
+
+/* ---------- views ---------- */
+function render() {
+  if (!D) return;
+  renderFilters(); renderTabs(); hideTip();
+  const v = $('#view');
+  ({ overview: viewOverview, autodrive: viewAutodrive, levels: viewLevels, errors: viewErrors, usage: viewUsage, climate: viewClimate })[S.tab](v);
+}
+
+function viewOverview(v) {
+  const stats = D.active.map(channelStats);
+  const jobs = D.jobs.filter(j => inP(j.t)).reduce((a, j) => a + j.n, 0);
+  const aerr = D.aerr.filter(e => inP(e.t));
+  const merr = D.errs.filter(e => inP(e.t)).length;
+  const check = stats.filter(s => s.status === 'check'), watch = stats.filter(s => s.status === 'watch');
+  const low = stats.filter(s => s.low), effLow = stats.filter(s => s.eff != null && s.eff < 100);
+  const k = S.sort.key, dir = S.sort.dir;
+  const sorted = stats.slice().sort((a, b) => {
+    const va = k === 'status' ? a.statusRank * 1e6 + (a.change ?? -1) : a[k], vb = k === 'status' ? b.statusRank * 1e6 + (b.change ?? -1) : b[k];
+    if (va == null && vb == null) return a.n - b.n; if (va == null) return 1; if (vb == null) return -1;
+    return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * dir || a.n - b.n;
+  });
+  const th =(key, label, cls = '') => `<th class="${cls}" data-sort="${key}" aria-sort="${S.sort.key === key ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${S.sort.key === key ? `<span class="arrow">${dir > 0 ? '▲' : '▼'}</span>` : ''}</th>`;
+  v.innerHTML = `
+  <div class="kpis">
+    <div class="kpi ${check.length ? 'alert' : ''}"><span class="label">Channels to check</span><span class="v">${check.length}<small>of ${stats.length}</small></span><span class="s">${watch.length} more on watch</span></div>
+    <div class="kpi ${aerr.length ? 'alert' : ''}"><span class="label">Autodrive 2 errors</span><span class="v">${fNum(aerr.length)}</span><span class="s">${fNum(aerr.filter(e => e.code === 0).length)} × pump filled less than 10%</span></div>
+    <div class="kpi ${effLow.length ? 'alert' : ''}"><span class="label">Intake efficiency below 100%</span><span class="v">${effLow.length}<small>channels</small></span><span class="s">${fNum(D.corr.filter(c => inP(c.t)).length)} flow-rate corrections in period</span></div>
+    <div class="kpi ${low.length ? 'alert' : ''}"><span class="label">Canisters at minimum</span><span class="v">${low.length}</span><span class="s">${stats.filter(s => !s.low && s.daysToMin != null && s.daysToMin < 7).length} more need a refill within 7 days</span></div>
+    <div class="kpi"><span class="label">Machine errors</span><span class="v">${fNum(merr)}</span><span class="s">${fNum(jobs)} dispense jobs in period</span></div>
+  </div>
+  <section class="plate">
+    <div class="plate-head"><h2>Condition per channel</h2><span class="note">Click a channel to open its Autodrive 2 history.</span></div>
+    <div class="tscroll"><table id="health">
+      <thead><tr>${th('n', 'Ch', 'num')}${th('col', 'Colorant')}${th('status', 'Status')}${th('latest', 'Last steps', 'num')}${th('ref', 'Normal', 'num')}${th('change', 'Last 14 d', 'num')}<th>Weekly steps</th>${th('eff', 'Intake eff.', 'num')}${th('errs', 'AD2 errors', 'num')}${th('corr', 'Corrections', 'num')}${th('pump', 'Pump travel', 'num')}${th('lvl', 'Canister level')}</tr></thead>
+      <tbody>${sorted.map(s => `<tr class="click" data-ch="${s.n}" tabindex="0">
+        <td class="num">${s.n}</td><td><span class="chip">${esc(s.col || '—')}</span></td><td>${statusHtml(s.status)}</td>
+        <td class="num">${fNum(s.latest)}</td><td class="num">${fNum(s.ref)}</td>
+        <td class="num">${fNum(s.recent)} <span class="delta ${s.change > 0.05 ? 'up' : s.change < -0.05 ? 'down' : ''}">${s.change != null ? '(' + fPct(s.change) + ')' : ''}</span></td>
+        <td>${sparkline(s.spark)}</td>
+        <td class="num"><span class="effv ${effClass(s.eff)}">${s.eff != null ? fNum(s.eff) + '%' : '–'}</span>${s.minEff != null && s.minEff < 100 ? `<div class="muted" style="font-size:11px">lowest ${fNum(s.minEff)}%</div>` : ''}</td>
+        <td class="num">${s.errs ? `<b style="color:var(--crit-ink)">${s.errs}</b>` : '0'}${s.lastErr ? `<div class="muted" style="font-size:11px">last ${fDate(s.lastErr)}</div>` : ''}</td>
+        <td class="num">${s.corr}</td>
+        <td class="num">${fNum(s.pump)}${s.piston != null && s.pump != null && Math.abs(s.piston - s.pump) > 1 ? `<div class="muted" style="font-size:11px">piston ${fNum(s.piston)}</div>` : ''}</td>
+        <td><div style="display:flex;align-items:center;gap:8px">${levelBar(s)}${levelFlag(D.ch.get(s.n) || {})}</div></td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="note"><b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test. <b>Normal</b> = median over the period, excluding the last 14 days. <b>Intake eff.</b> = the intake flow rate the Autodrive 2 uses now ("New efficiency %" of the last correction); <b>lowest</b> is the lowest value set in the period. ${statusHtml('check')} AD2 error in the last 30 days, last 14 days ≥ 35% above normal, or intake efficiency below 80%. ${statusHtml('watch')} ≥ 20% above normal, 3+ AD2 errors in the period, or intake efficiency below 100%. The canister bar marks the minimum level with a line.</p>
+  </section>
+  ${pumpOverview(stats)}`;
+  v.querySelectorAll('#pumpsort button').forEach(b => b.addEventListener('click', () => { S.pumpSort = b.dataset.s; render(); }));
+  v.querySelectorAll('tr[data-pch]').forEach(r => r.addEventListener('click', () => { S.sel = [+r.dataset.pch]; setTab('autodrive'); }));
+  v.querySelectorAll('th[data-sort]').forEach(h => h.addEventListener('click', () => { const key = h.dataset.sort; S.sort = { key, dir: S.sort.key === key ? -S.sort.dir : (key === 'n' || key === 'col' ? 1 : -1) }; render(); }));
+  v.querySelectorAll('tr[data-ch]').forEach(r => { const go = () => { S.sel = [+r.dataset.ch]; setTab('autodrive'); }; r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); });
+}
+function maxLevel(n) { const o = D.level.get(n); return o ? Math.max(...o.v) : 0; }
+
+/* Pump travel of all channels: the travel counters stored per channel in the database (state at the time the file was read) */
+function pumpOverview(stats) {
+  const rows = stats.filter(s => s.pump != null);
+  if (!rows.length) return '';
+  const totalL = new Map(); for (const d of D.disp) totalL.set(d.c, (totalL.get(d.c) || 0) + d.ml / 1000);
+  const sum = rows.reduce((a, s) => a + s.pump, 0), max = Math.max(...rows.map(s => s.pump)) || 1;
+  const sortBy = S.pumpSort || 'travel';
+  rows.sort(sortBy === 'ch' ? (a, b) => a.n - b.n : (a, b) => b.pump - a.pump || a.n - b.n);
+  const top = rows.slice().sort((a, b) => b.pump - a.pump)[0];
+  const replaced = rows.filter(s => s.piston != null && Math.abs(s.piston - s.pump) > 1);
+  return `<section class="plate">
+    <div class="plate-head"><h2>Pump travel per channel</h2>
+      <span class="seg" id="pumpsort"><button data-s="travel" aria-pressed="${sortBy !== 'ch'}">Highest first</button><button data-s="ch" aria-pressed="${sortBy === 'ch'}">Channel</button></span></div>
+    <div class="facts">
+      <div class="fact"><span class="label">Total, all channels</span><span class="v">${fNum(sum)}</span><span class="s">${rows.length} channels with a colorant</span></div>
+      <div class="fact"><span class="label">Average per channel</span><span class="v">${fNum(sum / rows.length)}</span></div>
+      <div class="fact"><span class="label">Highest</span><span class="v">${fNum(top.pump)}</span><span class="s">ch ${top.n} ${esc(top.col)} · ${fNum(top.pump / sum * 100, 1)}% of total</span></div>
+      <div class="fact"><span class="label">Piston replaced</span><span class="v">${replaced.length ? replaced.map(s => `ch ${s.n}`).join(', ') : 'none'}</span><span class="s">piston counter lower than pump counter</span></div>
+    </div>
+    <div class="tscroll"><table>
+      <thead><tr><th class="num">Ch</th><th>Colorant</th><th>Pump travel</th><th class="num">Share</th><th class="num">Piston travel</th><th class="num">Dispensed (all data)</th></tr></thead>
+      <tbody>${rows.map(s => `<tr class="click" data-pch="${s.n}" tabindex="0">
+        <td class="num">${s.n}</td><td><span class="chip">${esc(s.col || '—')}</span></td>
+        <td><div class="inbar" style="min-width:220px"><div class="track"><div class="fill" style="width:${(s.pump / max * 100).toFixed(1)}%"></div></div><span class="val">${fNum(s.pump)}</span></div></td>
+        <td class="num">${fNum(s.pump / sum * 100, 1)}%</td>
+        <td class="num">${s.piston == null ? '–' : fNum(s.piston)}${s.piston != null && Math.abs(s.piston - s.pump) > 1 ? ' <span class="flag warn">replaced</span>' : ''}</td>
+        <td class="num">${fNum(totalL.get(s.n) || 0, 1)} L</td></tr>`).join('')}
+        <tr><td></td><td><b>Total</b></td><td><div class="inbar" style="min-width:220px"><div style="flex:1"></div><span class="val"><b>${fNum(sum)}</b></span></div></td><td class="num"><b>100%</b></td><td class="num"><b>${fNum(rows.reduce((a, s) => a + (s.piston ?? 0), 0))}</b></td><td class="num"><b>${fNum(rows.reduce((a, s) => a + (totalL.get(s.n) || 0), 0), 1)} L</b></td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Pump and piston travel are the distance counters the dispenser keeps per channel, as stored in the database when the file was read. They are lifetime totals, so the period filter does not change them; the database does not state the unit. A piston counter lower than the pump counter means the piston was replaced and its counter restarted. Click a channel to open its Autodrive 2 history.</p>
+  </section>`;
+}
+
+function channelFacts(n) {
+  const c = D.ch.get(n) || {}, s = channelStats(n);
+  const lastCorr = D.corr.filter(x => x.c === n).pop();
+  const f = (label, v, sub = '') => `<div class="fact"><span class="label">${label}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
+  return `<div class="facts">
+    ${f('Canister level', c.lvl != null ? fNum(c.lvl, 2) + ' L' : '–', c.minLvl != null ? `minimum ${fNum(c.minLvl, 2)} L ${c.low ? '· <b style="color:var(--crit-ink)">at minimum</b>' : ''}` : '')}
+    ${f('Days to minimum', c.daysToMin != null ? (c.daysToMin > 365 ? '> 365' : fNum(c.daysToMin)) : '–', c.perDay ? `uses ${fNum(c.perDay * 1000)} ml/day (last 30 days)` : 'no use in last 30 days')}
+    ${f('Intake efficiency', `<span class="effv ${effClass(s.eff)}">${s.eff != null ? fNum(s.eff) + '%' : '–'}</span>`, lastCorr ? `last correction ${fDate(lastCorr.t)}` : 'never corrected')}
+    ${f('AD2 errors', s.errs, s.lastErr ? `in period · last ${fDate(s.lastErr)}` : 'in period')}
+    ${f('Last self-test', fNum(s.latest) + ' steps', s.latestT ? fDate(s.latestT) : '')}
+    ${c.pump != null ? f('Pump travel', fNum(c.pump, 0), c.piston != null && Math.abs(c.piston - c.pump) > 1 ? `piston travel ${fNum(c.piston, 0)} (since replacement)` : 'distance counter in the database') : ''}
+  </div>`;
+}
+
+function viewAutodrive(v) {
+  ensureSel();
+  const stats = new Map(D.active.map(n => [n, channelStats(n)]));
+  const stroke = STROKE[S.model];
+  const conv = x => x == null ? null : S.unit === 'pct' ? x / stroke * 100 : x;
+  const unitLabel = S.unit === 'pct' ? '% of stroke' : 'steps';
+  const vf = x => S.unit === 'pct' ? fNum(x, 2) + '%' : fNum(x);
+  const single = S.sel.length === 1, n0 = S.sel[0];
+  const colorFor = i => css(SERIES[i]);
+  v.innerHTML = `
+  <section class="plate">
+    <div class="plate-head"><h2>Channels</h2><span class="note">Click to select one channel; Ctrl/⌘-click to compare up to 4.</span></div>
+    <div class="picker" id="picker">${D.active.map(n => { const s = stats.get(n), i = S.sel.indexOf(n); return `<button data-ch="${n}" aria-pressed="${i >= 0}" title="${esc(STATUS_TEXT[s.status])}">${i >= 0 && !single ? `<span class="sw" style="background:${colorFor(i)}"></span>` : ''}<span class="n">${n}</span>${esc(s.col || '—')}${statusHtml(s.status, false)}</button>`; }).join('')}</div>
+    <div class="controls">
+      <label>Scale <span class="seg" id="unit"><button data-u="steps" aria-pressed="${S.unit === 'steps'}">Steps</button><button data-u="pct" aria-pressed="${S.unit === 'pct'}">% of stroke</button></span></label>
+      ${D.model
+        ? `<span class="machine-type" title="Taken from the machine description in the database: ${esc(D.meta.description || '')}. Stroke = max steps minus mechanical correction.">Machine <b class="mono">${D.model}</b> · ${fNum(STROKE[D.model])} steps per stroke</span>`
+        : `<label for="model">Machine <select class="sel" id="model"><option value="HA480"${S.model === 'HA480' ? ' selected' : ''}>HA480 · 15,320 steps</option><option value="HA180"${S.model === 'HA180' ? ' selected' : ''}>HA180 · 6,120 steps</option></select></label><span class="note">Machine type not found in the file; choose it here.</span>`}
+    </div>
+  </section>
+  ${single ? `<section class="plate"><div class="plate-head"><h2>Channel ${n0} · ${esc(colOf(n0) || 'no colorant')}</h2>${statusHtml(stats.get(n0).status)}</div>${channelFacts(n0)}</section>` : ''}
+  <section class="plate">
+    <div class="plate-head"><h2 id="ad2-title"></h2><div class="legend" id="ad2-legend"></div></div>
+    <div class="chart" id="ch-steps"></div>
+  </section>
+  <section class="plate">
+    <div class="plate-head"><h2>New efficiency %</h2><span class="note">Intake flow rate set by the Autodrive 2 after each correction. 100% is normal; a drop means the pump did not fill well.</span></div>
+    <div class="chart" id="ch-eff"></div>
+    <div class="grid2">
+      <div><h3>Pump speed used</h3><div class="chart" id="ch-speed"></div></div>
+      <div><h3>Temperature during self-test</h3><div class="chart" id="ch-temp"></div></div>
+    </div>
+  </section>
+  <section class="plate">
+    <div class="plate-head"><h2>Events</h2><span class="note">Autodrive 2 errors, flow-rate corrections, refills and service for the selected channel${single ? '' : 's'}, newest first.</span></div>
+    <div class="tscroll" id="ev-table"></div>
+  </section>
+  <section class="plate">
+    <div class="plate-head"><h2>All channels, week by week</h2>
+      <span class="seg" id="heatmode"><button data-h="rel" aria-pressed="${S.heat === 'rel'}">vs channel normal</button><button data-h="abs" aria-pressed="${S.heat === 'abs'}">Absolute steps</button></span></div>
+    <div class="heat-wrap" id="heat"></div>
+    <div class="heat-legend" id="heat-legend"></div>
+  </section>
+  ${slackPlate()}`;
+
+  v.querySelectorAll('#picker button').forEach(b => b.addEventListener('click', e => {
+    const n = +b.dataset.ch;
+    if (e.ctrlKey || e.metaKey || e.shiftKey) { const i = S.sel.indexOf(n); if (i >= 0) { if (S.sel.length > 1) S.sel.splice(i, 1); } else if (S.sel.length < 4) S.sel.push(n); else { toast('Compare up to 4 channels'); return; } }
+    else S.sel = [n];
+    render();
+  }));
+  v.querySelectorAll('#unit button').forEach(b => b.addEventListener('click', () => { S.unit = b.dataset.u; render(); }));
+  $('#model', v)?.addEventListener('change', e => { S.model = e.target.value; render(); });
+  v.querySelectorAll('#heatmode button').forEach(b => b.addEventListener('click', () => { S.heat = b.dataset.h; store.set('ha.heat', S.heat); render(); }));
+
+  const series = [];
+  if (single) {
+    const o = D.meas.get(n0) || { t: [], p: [], v: [] };
+    series.push({ name: 'Steps detect vacuum', color: colorFor(1), pts: o.t.map((t, i) => [t, conv(o.v[i])]), width: 1.3 });
+    series.push({ name: 'Steps detect problem', color: colorFor(0), pts: o.t.map((t, i) => [t, conv(o.p[i])]) });
+  } else {
+    S.sel.forEach((n, i) => { const o = D.meas.get(n) || { t: [], p: [] }; series.push({ name: `${n} · ${colOf(n)}`, color: colorFor(i), pts: o.t.map((t, k) => [t, conv(o.p[k])]) }); });
+  }
+  const selSet = new Set(S.sel);
+  const errMarkers = D.aerr.filter(e => selSet.has(e.c)).map(e => { const l = levelAt(e.c, e.t); return { t: e.t, shape: 'tri', color: css('--crit'), label: `<b>AD2 error</b> · ch ${e.c} ${esc(colOf(e.c))}<br>${esc(AD2_CODES[e.code] ?? 'Code ' + e.code)}${l != null ? `<br>Canister ${fNum(l, 2)} L` : ''}` }; });
+  const corrMarkers = D.corr.filter(c => selSet.has(c.c)).map(c => ({ t: c.t, shape: 'tick', color: css('--accent'), label: `<b>${c.kind} flow rate ${c.inc ? 'increased' : 'decreased'}</b> · ch ${c.c}<br>New efficiency ${fNum(c.ef)}% · correction ${fNum(c.cv)} · ${fNum(c.tp, 1)} °C` }));
+  const markers = [...errMarkers, ...corrMarkers];
+  const bottom = D.refill.filter(r => selSet.has(r.c)).map(r => ({ t: r.t, color: css('--muted'), label: `<b>Refill</b> · ch ${r.c} ${esc(colOf(r.c))}<br>${fNum(r.add, 2)} L added → ${fNum(r.lvl, 2)} L` }));
+  const vlines = D.service.filter(s => s.c != null && selSet.has(s.c)).map(s => ({ t: s.t, label: `<b>Service</b> · ch ${s.c}<br>${esc(s.text)}` }));
+  $('#ad2-title', v).textContent = single ? `Self-test ${unitLabel}` : `Steps detect problem — ${S.sel.length} channels compared`;
+  const evLegend = `<span><i class="tri"></i>AD2 error</span><span><i class="tick"></i>Flow-rate correction</span><span><i class="dot"></i>Refill</span>${vlines.length ? '<span><i class="vl"></i>Service</span>' : ''}`;
+  $('#ad2-legend', v).innerHTML = (single ? series.slice().reverse() : series).map(s => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('') + evLegend;
+  timeChart($('#ch-steps', v), {
+    x0: S.from, x1: S.to, height: 300, series, markers, bottomMarkers: bottom, vlines, clipQ: 0.98, yLabel: unitLabel, gap: 4 * DAY,
+    yFmt: x => S.unit === 'pct' ? fNum(x, x < 1 ? 2 : 1) + '%' : fNum(x), vFmt: x => vf(x), aria: 'Autodrive 2 self-test steps over time'
+  });
+  timeChart($('#ch-eff', v), {
+    x0: S.from, x1: S.to, height: 190, domain: [0, 100], markers: errMarkers, yFmt: x => fNum(x) + '%', vFmt: x => fNum(x) + '%',
+    series: S.sel.map((n, i) => ({ name: single ? 'Intake efficiency' : `${n} · ${colOf(n)}`, color: colorFor(i), step: true, pts: effSeries(n, S.from), area: single ? 'var(--band)' : null })),
+    aria: 'Intake efficiency over time'
+  });
+  const small = (id, key, name, fmt, dp) => timeChart($(id, v), {
+    x0: S.from, x1: S.to, height: 170, clipQ: key === 'sp' ? null : 0.995,
+    series: S.sel.map((n, i) => { const o = D.meas.get(n) || { t: [], [key]: [] }; return { name: single ? name : `${n} · ${colOf(n)}`, color: colorFor(i), pts: o.t.map((t, k) => [t, o[key][k]]), width: 1.4 }; }),
+    yFmt: x => fNum(x, dp), vFmt: x => fmt(x), aria: name
+  });
+  small('#ch-speed', 'sp', 'Speed used', x => fNum(x), 0);
+  small('#ch-temp', 'tp', 'Temperature', x => fNum(x, 1) + ' °C', 0);
+
+  const evs = [
+    ...D.aerr.filter(e => selSet.has(e.c) && inP(e.t)).map(e => { const l = levelAt(e.c, e.t); return { t: e.t, c: e.c, kind: statusHtml('check', false) + ' AD2 error', text: (AD2_CODES[e.code] ?? 'Code ' + e.code) + (l != null ? ` · canister ${fNum(l, 2)} L` : '') }; }),
+    ...D.corr.filter(c => selSet.has(c.c) && inP(c.t)).map(c => ({ t: c.t, c: c.c, kind: 'Flow-rate correction', text: `${c.kind} ${c.inc ? 'increased' : 'decreased'} · new efficiency ${fNum(c.ef)}% · correction ${fNum(c.cv)} · speed 100% ${fNum(c.s)} · ${fNum(c.tp, 1)} °C` })),
+    ...D.refill.filter(r => selSet.has(r.c) && inP(r.t)).map(r => ({ t: r.t, c: r.c, kind: 'Refill', text: `${fNum(r.add, 2)} L added, level ${fNum(r.lvl, 2)} L` })),
+    ...D.service.filter(s => s.c != null && selSet.has(s.c) && inP(s.t)).map(s => ({ t: s.t, c: s.c, kind: 'Service', text: s.text }))
+  ].sort((a, b) => b.t - a.t);
+  $('#ev-table', v).innerHTML = evs.length ? `<table><thead><tr><th>Date</th><th class="num">Ch</th><th>Colorant</th><th>Event</th><th>Details</th></tr></thead><tbody>${evs.slice(0, 400).map(e => `<tr><td class="mono">${fDateTime(e.t)}</td><td class="num">${e.c}</td><td><span class="chip">${esc(colOf(e.c))}</span></td><td>${e.kind}</td><td class="textcell">${esc(e.text)}</td></tr>`).join('')}</tbody></table>${evs.length > 400 ? `<p class="note">Showing the newest 400 of ${evs.length} events.</p>` : ''}` : '<div class="empty">No events for this selection in the period.</div>';
+
+  heatmap($('#heat', v), $('#heat-legend', v));
+  drawSlack(v);
+}
+
+function heatmap(host, legendHost) {
+  const weeks = []; for (let w = weekStart(S.from); w <= S.to; w += WEEK) weeks.push(w);
+  const rows = D.active.filter(n => D.meas.has(n));
+  if (!weeks.length || !rows.length) { host.innerHTML = '<div class="empty">No self-test data in this period.</div>'; legendHost.innerHTML = ''; return; }
+  const cells = new Map(); const all = [];
+  for (const n of rows) {
+    const o = D.meas.get(n), byW = new Map();
+    for (let i = lowerBound(o.t, S.from), e = lowerBound(o.t, S.to + 1); i < e; i++) { if (o.p[i] == null) continue; const w = weekStart(o.t[i]); if (!byW.has(w)) byW.set(w, []); byW.get(w).push(o.p[i]); }
+    const med = new Map([...byW].map(([w, a]) => [w, median(a)]));
+    const norm = median([...med.values()]);
+    cells.set(n, { med, norm }); all.push(...med.values());
+  }
+  const absSteps = [quantile(all, 0.05), quantile(all, 0.95)];
+  const relSteps = [-0.3, -0.15, -0.05, 0.05, 0.15, 0.3];
+  const relVars = ['--hm-n3', '--hm-n2', '--hm-n1', '--hm-0', '--hm-p1', '--hm-p2', '--hm-p3'];
+  const seqVars = ['--seq0', '--seq1', '--seq2', '--seq3', '--seq4', '--seq5', '--seq6'];
+  const colorOf = (val, norm) => {
+    if (S.heat === 'rel') { const r = val / norm - 1; let k = relSteps.findIndex(s => r < s); if (k < 0) k = 6; return css(relVars[k]); }
+    const [a, b] = absSteps; const k = Math.max(0, Math.min(6, Math.floor((val - a) / ((b - a) || 1) * 7))); return css(seqVars[k]);
+  };
+  const L = 74, cw = Math.max(5, Math.min(22, Math.floor((host.clientWidth - L - 8) / weeks.length))), rh = 18;
+  const W = L + cw * weeks.length + 4, H = rh * rows.length + 22;
+  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly median self-test steps per channel" style="display:block">`;
+  rows.forEach((n, r) => {
+    const { med, norm } = cells.get(n), sel = S.sel.includes(n);
+    s += `<text x="${L - 8}" y="${r * rh + 13}" text-anchor="end" style="fill:${sel ? css('--ink') : css('--muted')};font-family:var(--font-mono);font-size:11px;${sel ? 'font-weight:600' : ''}">${n} ${esc(colOf(n))}</text>`;
+    weeks.forEach((w, c) => { const val = med.get(w); if (val == null) return; s += `<rect data-ch="${n}" data-w="${w}" x="${L + c * cw + 1}" y="${r * rh + 1}" width="${cw - 2}" height="${rh - 2}" rx="1.5" fill="${colorOf(val, norm)}"/>`; });
+    if (sel) s += `<rect x="${L - 2}" y="${r * rh}" width="${cw * weeks.length + 4}" height="${rh}" fill="none" stroke="${css('--ink')}" stroke-width="1.2" rx="2"/>`;
+  });
+  let lastLab = -Infinity;
+  weeks.forEach((w, c) => { const d = new Date(w); if (d.getUTCDate() <= 7 && c * cw - lastLab > 44) { s += `<text x="${L + c * cw}" y="${H - 6}" style="fill:${css('--muted')};font-family:var(--font-mono);font-size:10.5px">${MON[d.getUTCMonth()]}${d.getUTCMonth() === 0 || lastLab < 0 ? ' ' + String(d.getUTCFullYear()).slice(2) : ''}</text>`; lastLab = c * cw; } });
+  host.innerHTML = s + '</svg>';
+  const svg = host.querySelector('svg');
+  svg.addEventListener('pointermove', e => {
+    const r = e.target.closest('rect[data-ch]'); if (!r) { hideTip(); return; }
+    const n = +r.dataset.ch, w = +r.dataset.w, { med, norm } = cells.get(n), val = med.get(w);
+    showTip(`<div class="t">Ch ${n} · ${esc(colOf(n))} · week of ${fDate(w)}</div><div class="r"><span>Median steps</span><span>${fNum(val)}</span></div><div class="r"><span>Channel normal</span><span>${fNum(norm)}</span></div><div class="r"><span>Difference</span><span>${fPct(val / norm - 1)}</span></div>`, e.clientX, e.clientY);
+  });
+  svg.addEventListener('pointerleave', hideTip);
+  svg.addEventListener('click', e => { const r = e.target.closest('rect[data-ch]'); if (r) { S.sel = [+r.dataset.ch]; render(); $('#ch-steps')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' }); } });
+  legendHost.innerHTML = S.heat === 'rel'
+    ? `<span>Weekly median vs the channel's own median for the period:</span><span class="ramp">${relVars.map(v => `<i style="background:var(${v})"></i>`).join('')}</span><span class="mono">−30% … ±5% … +30%</span><span class="muted">Red = more steps than usual.</span>`
+    : `<span>Weekly median steps:</span><span class="mono">${fNum(absSteps[0])}</span><span class="ramp">${seqVars.map(v => `<i style="background:var(${v})"></i>`).join('')}</span><span class="mono">${fNum(absSteps[1])}+</span>`;
+}
+
+function viewLevels(v) {
+  if (!D.hasLevel && !D.active.some(n => D.ch.get(n)?.lvl != null)) { v.innerHTML = '<section class="plate"><div class="empty">This file has no canister level data.</div></section>'; return; }
+  ensureSel();
+  const n0 = S.sel[0];
+  const rows = D.active.map(n => ({ n, ...D.ch.get(n), cap: capOf(n) })).filter(c => c.lvl != null);
+  const sorters = { days: (a, b) => (a.low === b.low ? 0 : a.low ? -1 : 1) || (a.daysToMin ?? 1e9) - (b.daysToMin ?? 1e9) || a.n - b.n, level: (a, b) => a.lvl - b.lvl || a.n - b.n, ch: (a, b) => a.n - b.n };
+  rows.sort(sorters[S.lvlSort] || sorters.days);
+  const low = rows.filter(c => c.low), soon = rows.filter(c => !c.low && c.daysToMin != null && c.daysToMin < 7);
+  const errAtLow = D.aerr.filter(e => inP(e.t) && e.code === 0).map(e => ({ e, l: levelAt(e.c, e.t), m: D.ch.get(e.c)?.minLvl })).filter(x => x.l != null);
+  const nearMin = errAtLow.filter(x => x.m != null && x.l <= x.m * 1.15).length;
+  v.innerHTML = `
+  <div class="kpis">
+    <div class="kpi ${low.length ? 'alert' : ''}"><span class="label">At or below minimum</span><span class="v">${low.length}<small>canisters</small></span><span class="s">${low.map(c => `${c.n} ${esc(c.col)}`).join(', ') || 'none'}</span></div>
+    <div class="kpi"><span class="label">Refill within 7 days</span><span class="v">${soon.length}<small>canisters</small></span><span class="s">at the use of the last 30 days</span></div>
+    <div class="kpi"><span class="label">Colorant in machine</span><span class="v">${fNum(rows.reduce((a, c) => a + c.lvl, 0), 1)}<small>L</small></span><span class="s">${rows.length} canisters</span></div>
+    <div class="kpi"><span class="label">"Pump filled < 10%" near minimum</span><span class="v">${nearMin}<small>of ${errAtLow.length}</small></span><span class="s">errors in period with the canister at most 15% above minimum</span></div>
+  </div>
+  <div class="grid2">
+    <section class="plate">
+      <div class="plate-head"><h2>Canister levels now</h2>
+        <span class="seg" id="lvlsort"><button data-s="days" aria-pressed="${S.lvlSort === 'days'}">Most urgent</button><button data-s="level" aria-pressed="${S.lvlSort === 'level'}">Lowest level</button><button data-s="ch" aria-pressed="${S.lvlSort === 'ch'}">Channel</button></span></div>
+      <div>
+        <div class="lvl-head"><span class="label">Ch</span><span class="label">Colorant</span><span class="label">Fill (line = min.)</span><span class="label" style="text-align:right">Litres</span><span class="label" style="text-align:right">Days to min.</span><span class="label">State</span></div>
+        ${rows.map(c => {
+          const st = c.low ? 'low' : c.daysToMin != null && c.daysToMin < 7 ? 'soon' : '';
+          return `<div class="lvl-row ${c.n === n0 ? 'sel' : ''}" data-ch="${c.n}" tabindex="0" role="button" aria-label="Channel ${c.n} ${esc(c.col)} level ${fNum(c.lvl, 2)} litres">
+          <span class="mono muted">${c.n}</span><span><span class="chip">${esc(c.col || '—')}</span></span>
+          <span class="bar" title="${fNum(c.lvl, 2)} of about ${fNum(c.cap, 1)} L"><span class="fill ${st}" style="width:${Math.min(100, c.lvl / c.cap * 100).toFixed(1)}%"></span>${c.minLvl != null ? `<span class="minmark" style="left:${Math.min(100, c.minLvl / c.cap * 100).toFixed(1)}%"></span>` : ''}</span>
+          <span class="mono" style="text-align:right">${fNum(c.lvl, 2)}<span class="muted"> / ${fNum(c.cap, 1)}</span></span>
+          <span class="mono" style="text-align:right">${c.daysToMin == null ? '<span class="muted">no use</span>' : c.daysToMin > 365 ? '> 365' : fNum(c.daysToMin)}</span>
+          <span>${c.low ? '<span class="flag crit">At minimum</span>' : st === 'soon' ? '<span class="flag warn">Refill soon</span>' : '<span class="flag ok">OK</span>'}</span></div>`; }).join('')}
+      </div>
+      <p class="note">Level at the time the file was read, as a share of the canister size (taken as the highest level seen, which a full refill reaches). The line marks the minimum level stored with the refills. Days to minimum uses the average daily use of the last 30 days.</p>
+    </section>
+    <section class="plate">
+      <div class="plate-head"><h2 id="lvl-title"></h2><div class="legend"><span><i style="background:var(--s1)"></i>Level</span><span><i class="dash"></i>Minimum</span><span><i class="tri"></i>AD2 error</span><span><i class="dot"></i>Refill</span></div></div>
+      <div class="chart" id="ch-level"></div>
+      <div class="facts" id="lvl-facts"></div>
+      <p class="note">Rebuilt from the refills (level after filling) minus every dispense since. For this file it ends exactly on the level stored in the database.</p>
+    </section>
+  </div>`;
+  v.querySelectorAll('#lvlsort button').forEach(b => b.addEventListener('click', () => { S.lvlSort = b.dataset.s; render(); }));
+  v.querySelectorAll('.lvl-row').forEach(r => { const go = () => { S.sel = [+r.dataset.ch]; render(); }; r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }); });
+  const c = D.ch.get(n0) || {}, o = D.level.get(n0) || { t: [], v: [] };
+  $('#lvl-title', v).textContent = `Level history · ch ${n0} ${colOf(n0)}`;
+  const series = [{ name: 'Level', color: css('--s1'), pts: o.t.map((t, i) => [t, o.v[i]]), gap: 1e15, area: 'var(--band)' }];
+  if (c.minLvl != null) series.push({ name: 'Minimum', color: css('--ink-2'), dash: '5 4', width: 1.2, step: true, pts: [[S.from - DAY, c.minLvl]] });
+  const markers = D.aerr.filter(e => e.c === n0).map(e => ({ t: e.t, shape: 'tri', color: css('--crit'), label: `<b>AD2 error</b><br>${esc(AD2_CODES[e.code] ?? 'Code ' + e.code)}<br>Canister ${fNum(levelAt(e.c, e.t), 2)} L` }));
+  const bottom = D.refill.filter(r => r.c === n0).map(r => ({ t: r.t, color: css('--muted'), label: `<b>Refill</b><br>${fNum(r.add, 2)} L added → ${fNum(r.lvl, 2)} L` }));
+  timeChart($('#ch-level', v), { x0: S.from, x1: S.to, height: 280, zero: true, series, markers, bottomMarkers: bottom, gap: 1e15, yFmt: x => fNum(x, 1) + ' L', vFmt: x => fNum(x, 2) + ' L', yLabel: 'litres', aria: 'Canister level over time', emptyText: 'No level data for this channel' });
+  const refillsP = D.refill.filter(r => r.c === n0 && inP(r.t)).sort((a, b) => a.t - b.t);
+  const gaps = refillsP.slice(1).map((r, i) => (r.t - refillsP[i].t) / DAY).filter(g => g > 0.5);
+  const usedP = D.disp.filter(d => d.c === n0 && inP(d.t)).reduce((a, d) => a + d.ml, 0) / 1000;
+  const lows = o.t.map((t, i) => [t, o.v[i]]).filter(([t, l]) => inP(t) && c.minLvl != null && l <= c.minLvl);
+  const f = (label, val, sub = '') => `<div class="fact"><span class="label">${label}</span><span class="v">${val}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
+  $('#lvl-facts', v).innerHTML = [
+    f('Level now', c.lvl != null ? fNum(c.lvl, 2) + ' L' : '–', c.minLvl != null ? `minimum ${fNum(c.minLvl, 2)} L` : ''),
+    f('Used in period', fNum(usedP, 2) + ' L', c.perDay ? `${fNum(c.perDay * 1000)} ml/day lately` : ''),
+    f('Refills in period', refillsP.length, gaps.length ? `every ${fNum(median(gaps))} days (median)` : ''),
+    f('Time at minimum', lows.length ? fNum(new Set(lows.map(([t]) => Math.floor(t / DAY))).size) + ' days' : '0 days', 'days with a level at or below minimum')
+  ].join('');
+}
+
+function viewErrors(v) {
+  const ae = D.aerr.filter(e => inP(e.t)).sort((a, b) => b.t - a.t);
+  const codes = [...new Set(D.aerr.map(e => e.code))].sort();
+  const byCh = new Map(); for (const e of ae) { const o = byCh.get(e.c) || { c: e.c, n: 0, codes: {}, last: 0 }; o.n++; o.codes[e.code] = (o.codes[e.code] || 0) + 1; o.last = Math.max(o.last, e.t); byCh.set(e.c, o); }
+  const chRows = [...byCh.values()].sort((a, b) => b.n - a.n);
+  const enriched = ae.map(e => { const l = levelAt(e.c, e.t), m = D.ch.get(e.c)?.minLvl; return { ...e, l, m, near: l != null && m != null && l <= m * 1.15, steps: stepsOn(e.c, e.t), eff: effAt(e.c, e.t) }; });
+  const list = D.errs.filter(e => inP(e.t));
+  const groups = new Map(); for (const e of list) { const g = groups.get(e.group) || { n: 0, last: 0 }; g.n++; g.last = Math.max(g.last, e.t); groups.set(e.group, g); }
+  const gs = [...groups].sort((a, b) => b[1].n - a[1].n);
+  const maxN = Math.max(1, ...gs.map(g => g[1].n));
+  const wk = new Map(); for (const e of list) { const w = weekStart(e.t); wk.set(w, (wk.get(w) || 0) + 1); }
+  const wkA = new Map(); for (const e of ae) { const w = weekStart(e.t); wkA.set(w, (wkA.get(w) || 0) + 1); }
+  const q = S.errQ.trim().toLowerCase();
+  const shown = list.filter(e => !q || (e.msg + ' ' + e.ph + ' ' + e.sh + ' ' + e.group).toLowerCase().includes(q)).sort((a, b) => b.t - a.t);
+  v.innerHTML = `
+  <div class="kpis">
+    <div class="kpi ${ae.length ? 'alert' : ''}"><span class="label">Autodrive 2 errors</span><span class="v">${fNum(ae.length)}</span><span class="s">${byCh.size} channel${byCh.size === 1 ? '' : 's'} affected</span></div>
+    <div class="kpi"><span class="label">Pump filled less than 10%</span><span class="v">${fNum(ae.filter(e => e.code === 0).length)}</span><span class="s">${enriched.filter(e => e.code === 0 && e.near).length} with the canister near its minimum</span></div>
+    <div class="kpi"><span class="label">Machine errors</span><span class="v">${fNum(list.length)}</span><span class="s">${gs.length} different types</span></div>
+    <div class="kpi"><span class="label">Most frequent machine error</span><span class="v" style="font-size:18px;line-height:1.25">${esc(gs[0]?.[0] || '–')}</span><span class="s">${gs[0] ? gs[0][1].n + ' times' : ''}</span></div>
+  </div>
+  <section class="plate">
+    <div class="plate-head"><h2>Autodrive 2 errors</h2><span class="note">The canister level at the moment of the error helps to separate an (almost) empty canister from a pump, valve or intake problem.</span></div>
+    <div class="grid2">
+      <div class="tscroll"><table><thead><tr><th class="num">Ch</th><th>Colorant</th>${codes.map(c => `<th class="num" title="${esc(AD2_CODES[c] ?? 'Code ' + c)}">${esc(AD2_CODES[c] ?? 'Code ' + c)}</th>`).join('')}<th class="num">Total</th><th>Last</th></tr></thead><tbody>
+        ${chRows.length ? chRows.map(r => `<tr class="click" data-ch="${r.c}"><td class="num">${r.c}</td><td><span class="chip">${esc(colOf(r.c))}</span></td>${codes.map(c => `<td class="num">${r.codes[c] || '<span class="muted">0</span>'}</td>`).join('')}<td class="num"><b>${r.n}</b></td><td class="mono">${fDate(r.last)}</td></tr>`).join('') : `<tr><td colspan="${codes.length + 4}" class="empty">No Autodrive 2 errors in this period.</td></tr>`}
+      </tbody></table></div>
+      <div><h3>Autodrive 2 errors per week</h3><div class="chart" id="ch-aerrs"></div></div>
+    </div>
+    ${enriched.length ? `<div class="tscroll"><table><thead><tr><th>Date</th><th class="num">Ch</th><th>Colorant</th><th>Error</th><th class="num">Canister</th><th class="num">Minimum</th><th>Level</th><th class="num">Steps that day</th><th class="num">Intake eff.</th></tr></thead><tbody>
+      ${enriched.map(e => `<tr class="click" data-ch="${e.c}"><td class="mono">${fDateTime(e.t)}</td><td class="num">${e.c}</td><td><span class="chip">${esc(colOf(e.c))}</span></td><td>${statusHtml('check', false)} ${esc(AD2_CODES[e.code] ?? 'Code ' + e.code)}</td>
+        <td class="num">${e.l != null ? fNum(e.l, 2) + ' L' : '–'}</td><td class="num">${e.m != null ? fNum(e.m, 2) + ' L' : '–'}</td>
+        <td>${e.l == null ? '<span class="muted">unknown</span>' : e.near ? '<span class="flag crit">Near minimum</span>' : '<span class="flag ok">Enough colorant</span>'}</td>
+        <td class="num">${fNum(e.steps)}</td><td class="num"><span class="effv ${effClass(e.eff)}">${e.eff != null ? fNum(e.eff) + '%' : '–'}</span></td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    <p class="note">Error codes: 0 pump filled less than 10% · 1 air detected · 2 no pump · 3 below minimal pump speed. <b>Near minimum</b> = canister at most 15% above its minimum level. Click a row to open the channel.</p>
+  </section>
+  <div class="grid2">
+    <section class="plate"><div class="plate-head"><h2>Machine errors by type</h2></div>
+      <div class="tscroll"><table><thead><tr><th>Error</th><th>Count</th><th>Last seen</th></tr></thead><tbody>
+      ${gs.length ? gs.map(([g, o]) => `<tr class="click" data-g="${esc(g)}"><td class="textcell" style="min-width:180px">${esc(g)}</td><td><div class="inbar" style="min-width:130px"><div class="track"><div class="fill" style="width:${(o.n / maxN * 100).toFixed(1)}%;background:var(--s2)"></div></div><span class="val">${o.n}</span></div></td><td class="mono">${fDate(o.last)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty">No machine errors in this period.</td></tr>'}
+      </tbody></table></div></section>
+    <section class="plate"><div class="plate-head"><h2>Machine errors per week</h2></div><div class="chart" id="ch-errs"></div></section>
+  </div>
+  <section class="plate">
+    <div class="plate-head"><h2>Machine error log</h2><input type="search" id="err-q" placeholder="Filter, e.g. lift, E49, channel 16" value="${esc(S.errQ)}" aria-label="Filter error log"></div>
+    <div class="tscroll" id="err-table">${shown.length ? `<table><thead><tr><th>Date</th><th>Error</th><th>During</th><th>Message</th></tr></thead><tbody>${shown.map(e => `<tr><td class="mono">${fDateTime(e.t)}</td><td>${esc(e.group)}</td><td>${esc(e.ph)}</td><td class="textcell muted">${esc(e.msg)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No errors match this filter.</div>'}</div>
+  </section>`;
+  timeChart($('#ch-aerrs', v), { x0: weekStart(S.from), x1: S.to, height: 200, zero: true, bars: { name: 'AD2 errors', color: css('--crit'), width: WEEK, pts: [...wkA] }, aria: 'Autodrive 2 errors per week', emptyText: 'No Autodrive 2 errors in this period' });
+  timeChart($('#ch-errs', v), { x0: weekStart(S.from), x1: S.to, height: 240, zero: true, bars: { name: 'Errors', color: css('--s2'), width: WEEK, pts: [...wk] }, aria: 'Machine errors per week' });
+  const qi = $('#err-q', v);
+  qi.addEventListener('input', () => { S.errQ = qi.value; const pos = qi.selectionStart; render(); const n = $('#err-q'); n.focus(); n.setSelectionRange(pos, pos); });
+  v.querySelectorAll('tr[data-g]').forEach(r => r.addEventListener('click', () => { S.errQ = r.dataset.g; render(); }));
+  v.querySelectorAll('tr[data-ch]').forEach(r => r.addEventListener('click', () => { S.sel = [+r.dataset.ch]; setTab('autodrive'); }));
+}
+
+function viewUsage(v) {
+  const wk = new Map(); for (const j of D.jobs) if (inP(j.t)) { const w = weekStart(j.t); wk.set(w, (wk.get(w) || 0) + j.n); }
+  const wl = new Map(); for (const d of D.disp) if (inP(d.t)) { const w = weekStart(d.t); wl.set(w, (wl.get(w) || 0) + d.ml / 1000); }
+  const rows = D.active.map(n => {
+    const ds = D.disp.filter(d => d.c === n && inP(d.t)), rs = D.refill.filter(r => r.c === n && inP(r.t)).sort((a, b) => a.t - b.t);
+    const gaps = rs.slice(1).map((r, i) => (r.t - rs[i].t) / DAY).filter(g => g > 0.5);
+    return { n, col: colOf(n), L: ds.reduce((a, d) => a + d.ml, 0) / 1000, shots: ds.reduce((a, d) => a + d.n, 0), refills: rs.length, added: rs.reduce((a, r) => a + Math.max(0, r.add), 0), gap: gaps.length ? median(gaps) : null, last: rs.length ? rs[rs.length - 1].t : null };
+  }).sort((a, b) => b.L - a.L);
+  const maxL = Math.max(0.001, ...rows.map(r => r.L));
+  const totJobs = [...wk.values()].reduce((a, b) => a + b, 0), totL = [...wl.values()].reduce((a, b) => a + b, 0);
+  v.innerHTML = `
+  <div class="kpis">
+    <div class="kpi"><span class="label">Dispense jobs</span><span class="v">${fNum(totJobs)}</span><span class="s">${fNum(totJobs / Math.max(1, wk.size), 0)} per week on average</span></div>
+    <div class="kpi"><span class="label">Colorant dispensed</span><span class="v">${fNum(totL, 1)}<small>L</small></span><span class="s">${fNum(rows.reduce((a, r) => a + r.shots, 0))} colorant shots</span></div>
+    <div class="kpi"><span class="label">Refills</span><span class="v">${fNum(rows.reduce((a, r) => a + r.refills, 0))}</span><span class="s">${fNum(rows.reduce((a, r) => a + r.added, 0), 1)} L added</span></div>
+  </div>
+  <div class="grid2">
+    <section class="plate"><div class="plate-head"><h2>Dispense jobs per week</h2></div><div class="chart" id="ch-jobs"></div></section>
+    <section class="plate"><div class="plate-head"><h2>Colorant dispensed per week</h2></div><div class="chart" id="ch-litres"></div></section>
+  </div>
+  <section class="plate">
+    <div class="plate-head"><h2>Consumption and refills per channel</h2><span class="note">Sorted by litres dispensed in the period. Click a row for its level history.</span></div>
+    <div class="tscroll"><table><thead><tr><th class="num">Ch</th><th>Colorant</th><th>Dispensed</th><th class="num">Shots</th><th class="num">Refills</th><th class="num">Added</th><th class="num">Days between refills</th><th>Last refill</th></tr></thead>
+    <tbody>${rows.map(r => `<tr class="click" data-ch="${r.n}" tabindex="0"><td class="num">${r.n}</td><td><span class="chip">${esc(r.col || '—')}</span></td>
+      <td><div class="inbar"><div class="track"><div class="fill" style="width:${(r.L / maxL * 100).toFixed(1)}%"></div></div><span class="val">${fNum(r.L, 1)} L</span></div></td>
+      <td class="num">${fNum(r.shots)}</td><td class="num">${r.refills}</td><td class="num">${fNum(r.added, 1)} L</td><td class="num">${r.gap != null ? fNum(r.gap, 0) : '–'}</td>
+      <td class="mono">${r.last ? fDate(r.last) : '–'}</td></tr>`).join('')}</tbody></table></div>
+    <p class="note">Dispensed amounts are summed from the dispense log (millilitres per shot). Days between refills is the median gap between refill events in the period.</p>
+  </section>`;
+  timeChart($('#ch-jobs', v), { x0: weekStart(S.from), x1: S.to, height: 220, zero: true, bars: { name: 'Jobs', color: css('--s1'), width: WEEK, pts: [...wk] }, aria: 'Dispense jobs per week' });
+  timeChart($('#ch-litres', v), { x0: weekStart(S.from), x1: S.to, height: 220, zero: true, bars: { name: 'Litres', color: css('--s1'), width: WEEK, pts: [...wl] }, yFmt: x => fNum(x, x < 10 ? 1 : 0), vFmt: x => fNum(x, 2) + ' L', aria: 'Litres dispensed per week' });
+  v.querySelectorAll('tr[data-ch]').forEach(r => r.addEventListener('click', () => { S.sel = [+r.dataset.ch]; setTab('levels'); }));
+}
+
+function drawSlack(v) {
+  const sl = D.slack.filter(s => inP(s.t));
+  if ($('#ch-slack', v)) {
+    const med = median(sl.map(s => s.v));
+    timeChart($('#ch-slack', v), {
+      x0: S.from, x1: S.to, height: 220, zero: true, gap: 10 * DAY, aria: 'Table slack over time',
+      series: [
+        { name: 'Table slack', color: css('--s1'), pts: sl.map(s => [s.t, s.v]), width: 1.5 },
+        ...(med != null ? [{ name: 'Median in period', color: css('--ink-2'), dash: '5 4', width: 1.2, step: true, pts: [[S.from - DAY, med]] }] : [])
+      ],
+      yFmt: x => fNum(x), vFmt: x => fNum(x, x % 1 ? 1 : 0)
+    });
+  }
+}
+
+/* Table slack: logged at the end of the early-morning flushing cycles (the first one also runs the Autodrive 2 self-test); value as stored, the database gives no unit */
+function slackPlate() {
+  if (!D.slack.length) return '';
+  const sl = D.slack.filter(s => inP(s.t)), vals = sl.map(s => s.v);
+  const last = D.slack[D.slack.length - 1], allMed = median(D.slack.map(s => s.v));
+  const lastP = sl[sl.length - 1];
+  const f = (label, val, sub = '') => `<div class="fact"><span class="label">${label}</span><span class="v">${val}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
+  return `<section class="plate">
+    <div class="plate-head"><h2>Table slack</h2><div class="legend"><span><i style="background:var(--s1)"></i>Table slack</span><span><i class="dash"></i>Median in period</span></div></div>
+    <div class="facts">
+      ${f('Last measurement', fNum(last.v, last.v % 1 ? 1 : 0), fDateTime(last.t))}
+      ${f('Median in period', vals.length ? fNum(median(vals), 1) : '–', `all data: ${fNum(allMed, 1)}`)}
+      ${f('Range in period', vals.length ? `${fNum(Math.min(...vals))} – ${fNum(Math.max(...vals))}` : '–', 'lowest – highest')}
+      ${f('Measurements', fNum(vals.length), lastP ? `about ${fNum(vals.length / Math.max(1, (S.to - S.from) / WEEK), 1)} per week` : 'none in this period')}
+    </div>
+    <div class="chart" id="ch-slack"></div>
+    <p class="note">Table slack is a machine-wide value, not per channel. The dispenser logs it once a week, at the end of the two early-morning flushing cycles; the first of those cycles also runs the Autodrive 2 self-test. Values are shown as stored; the database does not state the unit.</p>
+  </section>`;
+}
+
+function viewClimate(v) {
+  const cl = D.climate.filter(c => inP(c.t));
+  const tmins = cl.map(c => c.tmin).filter(x => x != null), tmaxs = cl.map(c => c.tmax).filter(x => x != null);
+  const hmins = cl.map(c => c.hmin).filter(x => x != null), hmaxs = cl.map(c => c.hmax).filter(x => x != null);
+  v.innerHTML = `
+  <div class="kpis">
+    <div class="kpi"><span class="label">Coldest</span><span class="v">${fNum(tmins.length ? Math.min(...tmins) : null, 1)}<small>°C</small></span><span class="s">${cl.length ? fDate(cl.find(c => c.tmin === Math.min(...tmins))?.t) : ''}</span></div>
+    <div class="kpi"><span class="label">Warmest</span><span class="v">${fNum(tmaxs.length ? Math.max(...tmaxs) : null, 1)}<small>°C</small></span><span class="s">${cl.length ? fDate(cl.find(c => c.tmax === Math.max(...tmaxs))?.t) : ''}</span></div>
+    <div class="kpi"><span class="label">Humidity range</span><span class="v">${fNum(hmins.length ? Math.min(...hmins) : null, 0)}–${fNum(hmaxs.length ? Math.max(...hmaxs) : null, 0)}<small>% RH</small></span><span class="s">daily minimum to maximum</span></div>
+  </div>
+  <section class="plate"><div class="plate-head"><h2>Temperature at the machine</h2><span class="note">Daily minimum to maximum.</span></div><div class="chart" id="ch-t"></div></section>
+  <section class="plate"><div class="plate-head"><h2>Relative humidity</h2><span class="note">Daily minimum to maximum.</span></div><div class="chart" id="ch-h"></div></section>`;
+  timeChart($('#ch-t', v), { x0: S.from, x1: S.to, height: 230, dayTitle: true, bands: [{ name: 'Min – max', fill: css('--band'), stroke: css('--s1'), pts: cl.map(c => [c.t, c.tmin, c.tmax]) }], yFmt: x => fNum(x, 0) + '°', vFmt: x => fNum(x, 1) + ' °C', aria: 'Daily temperature range' });
+  timeChart($('#ch-h', v), { x0: S.from, x1: S.to, height: 230, dayTitle: true, bands: [{ name: 'Min – max', fill: 'color-mix(in srgb, var(--s3) 20%, transparent)', stroke: css('--s3'), pts: cl.map(c => [c.t, c.hmin, c.hmax]) }], yFmt: x => fNum(x, 0) + '%', vFmt: x => fNum(x, 0) + '%', aria: 'Daily humidity range' });
+}
+
+/* ---------- plumbing ---------- */
+function toast(msg, ms = 2600) { document.querySelectorAll('.toast').forEach(x => x.remove()); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status'); document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
+const TABS = ['overview', 'autodrive', 'levels', 'errors', 'usage', 'climate'];
+function setTab(t) { S.tab = t; store.set('ha.tab', t); try { history.replaceState(null, '', '#' + t); } catch {} render(); scrollTo({ top: 0 }); }
+function load(raw, announce) {
+  // A shop name from SHOP_NAMES wins; otherwise the name typed earlier for this machine or share folder
+  const fixed = raw.meta.shareName ? fixedShop(raw.meta.shareName) : '';
+  const saved = raw.meta.serial ? store.get('ha.loc.' + raw.meta.serial) : null;
+  if (fixed) raw.meta.location = fixed;
+  else if (saved != null) raw.meta.location = saved;
+  else if (raw.meta.shareName) raw.meta.location = shopOf(raw.meta.shareName);
+  if (raw.meta.shareName && raw.meta.location && !fixed) store.set('ha.share.' + raw.meta.shareName, raw.meta.location);
+  // No shop name yet: show the name of the share folder it came from (the dispenser PC)
+  if (!raw.meta.location && raw.meta.shareName) raw.meta.location = raw.meta.shareName;
+  D = prepare(raw); $('#loc-in').value = D.meta.location || '';
+  $('#welcome').hidden = true;
+  document.querySelectorAll('[data-needs-data]').forEach(x => { x.hidden = false; });
+  S.model = D.model || 'HA480'; S.sel = []; S.errQ = '';
+  setPreset(S.preset === 'all' || !S.preset ? 'all' : S.preset);
+  renderHeader(); render();
+  if (announce) toast(`Read ${raw.meta.description || 'machine'} · ${fNum(raw.ad2m.length)} Autodrive measurements, ${fNum((raw.jobs || []).reduce((a, j) => a + j[1], 0))} dispense jobs`, 4000);
+}
+function busy(on, text) { $('#busy').hidden = !on; if (text) $('#busy-text').textContent = text; }
+/* ---------- it_pos_app.exe guard ----------
+   The dispenser software (it_pos_app.exe) keeps DeviceDriverDatabase.mdf locked while it runs.
+   Started through "Start HA Dispenser Insights.cmd", the page is served by a local helper that
+   checks for it_pos_app.exe and closes it before a file is opened. Opened straight from disk,
+   the page can't see processes, so it works as before. */
+const POS = window.POS_HELPER || null;
+async function closePosApp() {
+  if (!POS) return {};
+  busy(true, 'Checking for it_pos_app.exe…');
+  try {
+    const r = await fetch('/pos/stop', { method: 'POST', headers: { 'X-Helper-Token': POS.token } });
+    return await r.json();
+  } catch {
+    return { unreachable: true, error: 'Couldn\'t check for it_pos_app.exe because the helper window is closed. Start the tool again with "Start HA Dispenser Insights.cmd".' };
+  } finally { busy(false); }
+}
+/* ---------- shops on the file share ----------
+   The backup task copies each dispenser PC's database to the file share, one folder per PC.
+   Started through the helper, the page asks the helper for the folders and the chosen .mdf.
+   Opened straight from disk, Edge/Chrome read the share themselves: the user picks the share folder
+   once, the browser keeps that folder (IndexedDB) and on later visits only asks to allow it again.
+   The shop name typed under Location is remembered per folder, so the list shows which shop each PC is. */
+const SHARE_PATH = '\\\\stbosspaintsmymxddbp.file.core.windows.net\\devicedriverdatabase';
+const SHARE_MODE = POS && POS.share ? 'helper' : 'showDirectoryPicker' in window ? 'local' : 'none';
+const share = { items: null, error: '', q: '', need: '', dir: null };
+const fixedShop = name => { const k = Object.keys(SHOP_NAMES).find(k => k.toLowerCase() === String(name).toLowerCase()); return k ? SHOP_NAMES[k] : ''; };
+const shopOf = name => fixedShop(name) || store.get('ha.share.' + name) || '';
+const fLocal = t => { const d = new Date(t); return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const idb = (mode, fn) => new Promise((res, rej) => {
+  const o = indexedDB.open('ha-insights', 1);
+  o.onupgradeneeded = () => o.result.createObjectStore('kv');
+  o.onerror = () => rej(o.error);
+  o.onsuccess = () => { try { const tx = o.result.transaction('kv', mode), r = fn(tx.objectStore('kv')); tx.oncomplete = () => res(r.result); tx.onerror = () => rej(tx.error); } catch (e) { rej(e); } };
+});
+const idbGet = k => idb('readonly', s => s.get(k)).catch(() => null);
+const idbSet = (k, v) => idb('readwrite', s => s.put(v, k)).catch(() => {});
+async function listDir(dir) {
+  const items = [];
+  for await (const h of dir.values()) {
+    if (h.kind !== 'directory') continue;
+    try {
+      for await (const f of h.values()) {
+        if (f.kind !== 'file' || !/^devicedriverdatabase\.mdf$/i.test(f.name)) continue;
+        const file = await f.getFile();
+        items.push({ name: h.name, size: file.size, ts: file.lastModified, fh: f });
+        break;
+      }
+    } catch {}
+  }
+  return items;
+}
+const HELPER_GONE = 'Couldn\'t reach the helper because its window is closed. Start the tool again with "Start HA Dispenser Insights.cmd".';
+// ask = true only from a click: the browser shows its "allow" question only after one
+async function fetchShare(ask) {
+  share.items = null; share.error = ''; share.need = ''; renderShare();
+  try {
+    if (SHARE_MODE === 'helper') {
+      const j = await (await fetch('/share/list', { headers: { 'X-Helper-Token': POS.token } })).json();
+      if (j.error) share.error = j.error; else share.items = j.items || [];
+    } else if (SHARE_MODE === 'local') {
+      share.dir = share.dir || await idbGet('shareDir');
+      if (!share.dir) share.need = 'pick';
+      else {
+        let p = await share.dir.queryPermission({ mode: 'read' });
+        if (p !== 'granted' && ask) p = await share.dir.requestPermission({ mode: 'read' });
+        if (p !== 'granted') share.need = 'allow'; else share.items = await listDir(share.dir);
+      }
+    }
+  } catch (e) { share.error = SHARE_MODE === 'helper' ? HELPER_GONE : `Couldn't read the folder (${e.message}). Check that this PC can open ${SHARE_PATH}, then click Refresh.`; }
+  renderShare();
+}
+async function pickShare() {
+  try { share.dir = await showDirectoryPicker({ id: 'ha-share', mode: 'read' }); }
+  catch (e) { if (e.name !== 'AbortError') { share.error = `The browser didn't allow that folder (${e.message}).`; renderShare(); } return; }
+  await idbSet('shareDir', share.dir);
+  fetchShare(true);
+}
+function renderShare() {
+  const q = share.q.trim().toLowerCase();
+  let html;
+  if (SHARE_MODE === 'none') html = '<div class="empty">This browser can\'t read folders. Open this page in Microsoft Edge or Google Chrome, or start it with <span class="mono">Start HA Dispenser Insights.cmd</span>.</div>';
+  else if (share.error) html = `<div class="empty">${esc(share.error)}</div>`;
+  else if (share.need === 'pick') html = `<div class="empty">Point this browser once at the folder with the shop backups. Click <b>Choose share folder</b>, paste <span class="mono">${esc(SHARE_PATH)}</span> into the address bar of the folder window, press Enter and click <b>Select Folder</b>.<p><button class="btn primary" type="button" data-share-act="pick">Choose share folder</button></p></div>`;
+  else if (share.need === 'allow') html = `<div class="empty">The browser needs your OK to read the folder <b class="mono">${esc(share.dir.name)}</b> again.<p><button class="btn primary" type="button" data-share-act="allow">Allow and show shops</button></p></div>`;
+  else if (!share.items) html = '<div class="empty">Loading the list of shops…</div>';
+  else {
+    const rows = share.items.map(i => ({ ...i, shop: shopOf(i.name) }))
+      .filter(i => !q || (i.shop + ' ' + i.name).toLowerCase().includes(q))
+      .sort((a, b) => (!a.shop - !b.shop) || (a.shop || a.name).localeCompare(b.shop || b.name));
+    const cur = D?.meta.shareName;
+    html = rows.length ? `<table><thead><tr><th>Shop</th><th>PC</th><th>Backup from</th><th class="num">Size</th></tr></thead><tbody>${rows.map(i => {
+      const age = (Date.now() - i.ts) / DAY;
+      return `<tr class="click${i.name === cur ? ' sel' : ''}" data-share="${esc(i.name)}" tabindex="0">
+        <td>${i.shop ? `<b>${esc(i.shop)}</b>` : '<span class="muted">no shop name yet</span>'}</td><td class="mono">${esc(i.name)}</td>
+        <td class="mono">${fLocal(i.ts)}${age > 3 ? ` <span class="flag warn">${fNum(Math.floor(age))} days old</span>` : ''}</td>
+        <td class="num">${fNum(i.size / 1048576, 1)} MB</td></tr>`; }).join('')}</tbody></table>`
+      : `<div class="empty">${share.items.length ? 'No shops match this filter.' : 'No DeviceDriverDatabase.mdf found on the share.'}</div>`;
+  }
+  const note = SHARE_MODE === 'helper' ? `Backups on ${esc(POS.share)}, one folder per dispenser PC.`
+    : SHARE_MODE === 'local' && share.dir ? `Backups in the folder <span class="mono">${esc(share.dir.name)}</span>, one folder per dispenser PC. <button class="btn" type="button" data-share-act="pick">Choose another folder</button>`
+    : '';
+  document.querySelectorAll('[data-share-list]').forEach(h => {
+    h.innerHTML = html;
+    h.querySelectorAll('tr[data-share]').forEach(r => { const go = () => openShare(r.dataset.share); r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); });
+  });
+  document.querySelectorAll('[data-share-note]').forEach(x => { x.innerHTML = note + (note && share.items ? ' After opening one, type the shop name under Location; the list remembers it for that PC.' : ''); });
+  document.querySelectorAll('[data-share-act]').forEach(b => b.addEventListener('click', () => b.dataset.shareAct === 'pick' ? pickShare() : fetchShare(true)));
+}
+async function openShare(name) {
+  if ($('#share-dlg').open) $('#share-dlg').close();
+  busy(true, `Fetching ${name} from the file share…`);
+  try {
+    let buf;
+    if (SHARE_MODE === 'helper') {
+      const r = await fetch('/share/file?m=' + encodeURIComponent(name), { headers: { 'X-Helper-Token': POS.token } });
+      if (!r.ok) throw new Error(await r.text());
+      buf = await r.arrayBuffer();
+    } else {
+      const it = share.items?.find(i => i.name === name);
+      if (!it) throw new Error('it is no longer in the list; click Refresh');
+      buf = await (await it.fh.getFile()).arrayBuffer();
+    }
+    busy(true, `Reading ${name}…`);
+    await new Promise(res => setTimeout(res, 30));
+    const raw = MDF.toRaw(buf, `${name}\\DeviceDriverDatabase.mdf`);
+    raw.meta.shareName = name;
+    load(raw, true);
+    if (!D.meta.location) $('#loc-in').focus();
+  } catch (e) {
+    toast(e.code ? e.message : SHARE_MODE === 'helper' && e instanceof TypeError ? HELPER_GONE : `Couldn't read ${name} from the file share (${e.message})`, 8000);
+  } finally { busy(false); }
+}
+function loadFile(file, posJustClosed) {
+  const isJson = /\.json$/i.test(file.name);
+  busy(true, `Reading ${file.name}…`);
+  const r = new FileReader();
+  r.onerror = () => { busy(false); toast(posJustClosed ? `it_pos_app.exe was just closed. Open ${file.name} again to read it.` : `Couldn't open ${file.name}. If it_pos_app.exe is running, close it or copy the file first and open the copy.`, 7000); };
+  r.onload = () => setTimeout(() => {
+    try {
+      const raw = isJson ? JSON.parse(r.result) : MDF.toRaw(r.result, file.name);
+      if (!raw.meta || !raw.ad2m) throw new Error('no dispenser data');
+      load(raw, true);
+    } catch (e) {
+      toast(e.code ? e.message : isJson ? 'This .json file has no dispenser data.' : `Couldn't read ${file.name} (${e.message}). Make sure it is a complete copy of DeviceDriverDatabase.mdf.`, 7000);
+    } finally { busy(false); }
+  }, 30);
+  isJson ? r.readAsText(file) : r.readAsArrayBuffer(file);
+}
+
+$('#presets').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setPreset(b.dataset.p); store.set('ha.preset', b.dataset.p); render(); });
+$('#d-from').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); if (!isNaN(t)) { S.from = Math.max(D.minT, Math.min(t, S.to - DAY + 1)); S.preset = 'custom'; render(); } });
+$('#d-to').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); if (!isNaN(t)) { S.to = Math.max(S.from + DAY - 1, t + DAY - 1); S.preset = 'custom'; render(); } });
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
+$('#tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const bs = [...$('#tabs').children], i = bs.findIndex(b => b.dataset.tab === S.tab), n = bs[(i + (e.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length];
+  setTab(n.dataset.tab); n.focus();
+});
+$('#loc-in').addEventListener('input', e => { if (!D) return; D.meta.location = e.target.value.trim(); if (D.meta.serial) store.set('ha.loc.' + D.meta.serial, D.meta.location); if (D.meta.shareName) store.set('ha.share.' + D.meta.shareName, D.meta.location); renderHeader(); });
+$('#share-pick').hidden = false;
+$('#share-btn').hidden = SHARE_MODE === 'none';
+$('#share-btn').addEventListener('click', () => { $('#share-dlg').showModal(); fetchShare(true); });
+$('#share-dlg [data-close]').addEventListener('click', () => $('#share-dlg').close());
+document.querySelectorAll('[data-share-refresh]').forEach(b => { b.hidden = SHARE_MODE === 'none'; b.addEventListener('click', () => fetchShare(true)); });
+document.querySelectorAll('[data-share-q]').forEach(i => { i.hidden = SHARE_MODE === 'none'; i.addEventListener('input', () => { share.q = i.value; document.querySelectorAll('[data-share-q]').forEach(o => { if (o !== i) o.value = share.q; }); renderShare(); }); });
+fetchShare(false);
+$('#file-in').addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; });
+// With the helper, close it_pos_app.exe first and only then show the file picker.
+document.querySelectorAll('label[for="file-in"]').forEach(l => l.addEventListener('click', async e => {
+  if (!POS) return;
+  e.preventDefault();
+  const st = await closePosApp();
+  if (st.error) { toast(st.error, 8000); if (!st.unreachable) return; }
+  else if (st.closed) toast('Closed it_pos_app.exe so the database can be read.', 4000);
+  // Browsers only open a file picker shortly after a click; closing the app can take longer than that.
+  if (navigator.userActivation && !navigator.userActivation.isActive) { toast('it_pos_app.exe is closed. Click Open .mdf file again to choose the database.', 7000); return; }
+  $('#file-in').click();
+}));
+let dropEl = null;
+addEventListener('dragover', e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); if (!dropEl) { dropEl = document.createElement('div'); dropEl.className = 'drop-hint'; dropEl.textContent = 'Drop DeviceDriverDatabase.mdf to analyse that machine'; document.body.appendChild(dropEl); } } });
+addEventListener('dragleave', e => { if (e.relatedTarget == null && dropEl) { dropEl.remove(); dropEl = null; } });
+addEventListener('drop', async e => {
+  e.preventDefault(); dropEl?.remove(); dropEl = null;
+  const f = e.dataTransfer?.files?.[0]; if (!f) return;
+  const st = /\.json$/i.test(f.name) ? {} : await closePosApp();
+  if (st.error) { toast(st.error, 8000); if (!st.unreachable) return; }
+  else if (st.closed) toast('Closed it_pos_app.exe so the database can be read.', 4000);
+  loadFile(f, st.closed);
+});
+let rz, lastW = 0; new ResizeObserver(([en]) => { const w = Math.round(en.contentRect.width); if (w === lastW) return; lastW = w; clearTimeout(rz); rz = setTimeout(() => { if (D) render(); }, 150); }).observe($('#view'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (D) render(); });
+new MutationObserver(() => { if (D) render(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+const hashTab = location.hash.slice(1);
+S.tab = TABS.includes(hashTab) ? hashTab : (TABS.includes(store.get('ha.tab')) ? store.get('ha.tab') : 'overview');
+S.heat = store.get('ha.heat') || 'rel';
+S.preset = store.get('ha.preset') || 'all';
+if (!['all', '365', '90', '30'].includes(S.preset)) S.preset = 'all';
+// Nothing is shown until a DeviceDriverDatabase.mdf is opened.
+})();
+</script>
