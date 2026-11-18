@@ -3,6 +3,10 @@
 Service analysis for Fluid Management HA180/HA480 dispensers. The page reads a copy of the dispenser's
 `DeviceDriverDatabase.mdf` directly in the browser; no SQL Server or LocalDB is needed.
 
+**Online:** https://jellemaertens.github.io/BossDispenserInsights/ (GitHub Pages, updated on every push to `main`).
+Online the page runs without the local helper: it can't close `it_pos_app.exe`, Edge or Chrome asks once for the share
+folder, and *Contacted* ticks stay in that browser. For the full version, start it with `Start HA Dispenser Insights.cmd`.
+
 ## Files
 
 | File | What it does |
