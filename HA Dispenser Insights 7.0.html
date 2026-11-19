@@ -301,7 +301,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
           <button class="btn" type="button" id="al-back" hidden></button>
         </div></div>
       <div id="al-body"></div>
-      <p class="note">Every shop backup on the file share is checked for the Autodrive 2 error <b>pump filled less than 10%</b>. <b>New</b> counts the errors logged since you last opened that shop or marked it as seen; this browser remembers that per shop. <b>Contacted</b> is shared with everyone who starts the tool with <span class="mono">Start HA Dispenser Insights.cmd</span>: the ticks are kept in <span class="mono">HA Dispenser Insights contacts.json</span> on the file share, with who ticked them. Only backups that changed since the last scan are read again.</p>
+      <p class="note">Every shop backup on the file share is checked for the Autodrive 2 error <b>pump filled less than 10%</b>. <b>New</b> counts the errors logged since you last opened that shop or marked it as seen; this browser remembers that per shop. <b>Contacted</b> is shared with everyone: the ticks are kept in <span class="mono">HA Dispenser Insights contacts.json</span> on the file share, with who ticked them, and colleagues' ticks show up within a minute. Opened without <span class="mono">Start HA Dispenser Insights.cmd</span>, the browser asks once for permission to save in the share folder and once for your name. Only backups that changed since the last scan are read again.</p>
     </section>
     <section class="plate" id="travel" hidden>
       <div class="plate-head"><h2 id="tr-title"></h2>
@@ -1657,36 +1657,77 @@ function alertsPeriodText() {
 { const p = store.get('ha.alpreset') || store.get('ha.alwin'); setAlertsPreset(['all', '365', '90', '30', '7'].includes(p) ? p : '30'); }
 const ackOf = name => +store.get('ha.ack.' + name) || 0;
 /* When the shop was contacted about its pump alerts (real time, ms), 0 = not contacted.
-   Through the helper the ticks live in one file on the share for the whole team ({ folder: { t, by } });
-   opened straight from disk the page can't write there, so it keeps them in this browser. */
-const contacts = { shared: SHARE_MODE === 'helper', map: {}, err: '', busy: new Set() };
-const contactOf = name => contacts.shared ? +contacts.map[name]?.t || 0 : +store.get('ha.contact.' + name) || 0;
-const contactBy = name => contacts.shared ? contacts.map[name]?.by || '' : '';
+   The ticks of the whole team live in one file in the root of the share folder ({ folder: { t, by } }).
+   Through the helper, the helper writes it under the Windows user name. Without the helper (e.g. on GitHub Pages)
+   the browser writes it itself in the share folder it was given; it asks once per session for permission to save
+   there, and once for the name to show. Without a share folder the ticks stay in this browser ('ha.contact.*'),
+   and those are moved into the file at the next save. */
+const CONTACTS_FILE = 'HA Dispenser Insights contacts.json';
+const contacts = { map: {}, err: '', busy: new Set() };
+const contactsShared = () => SHARE_MODE === 'helper' || (SHARE_MODE === 'local' && !!share.dir && !!share.items);
+const localTicks = () => { try { return Object.keys(localStorage).filter(k => k.startsWith('ha.contact.') && store.get(k)); } catch { return []; } };
+const dropLocalTick = k => { try { localStorage.removeItem(k); } catch {} };
+const contactOf = name => +contacts.map[name]?.t || +store.get('ha.contact.' + name) || 0;
+const contactBy = name => contacts.map[name]?.by || '';
 async function contactCall(query, method = 'GET') {
   const j = await (await fetch('/contacts' + query, { method, headers: { 'X-Helper-Token': POS.token } })).json();
   if (j.error) throw new Error(j.error);
   contacts.map = j.items || {}; contacts.err = '';
 }
+async function readContactsFile(fh) {
+  try { const text = await (await (fh || await share.dir.getFileHandle(CONTACTS_FILE)).getFile()).text(); return text.trim() ? JSON.parse(text) : {}; }
+  catch (e) { if (e.name === 'NotFoundError') return {}; throw e; }
+}
+// Browser-only: change the file in the share folder. It is read again right before writing, so ticks a colleague
+// saved in the meantime are kept; pending ticks from this browser are added only where the file has none.
+// Must be called straight from a click: the browser only asks for permission after one.
+async function writeContactsFile(changes, pending = []) {
+  if (await share.dir.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error("The browser wasn't allowed to save in the share folder, so the tick isn't shared.");
+  let by = store.get('ha.myname');
+  if (!by) { by = (prompt('Your name, shown to colleagues next to the shops you mark as contacted:') || '').trim(); if (by) store.set('ha.myname', by); }
+  const fh = await share.dir.getFileHandle(CONTACTS_FILE, { create: true });
+  const map = await readContactsFile(fh);
+  for (const [name, t] of pending) if (!map[name]) map[name] = { t, by };
+  for (const [name, t] of changes) { if (t) map[name] = { t, by }; else delete map[name]; }
+  const w = await fh.createWritable(); await w.write(JSON.stringify(map)); await w.close();
+  contacts.map = map; contacts.err = '';
+}
 async function loadContacts() {
-  if (!contacts.shared) return;
+  if (!contactsShared()) return;
+  const before = JSON.stringify(contacts.map) + contacts.err;
   try {
-    await contactCall('');
-    // ticks made in this browser before they were shared move to the file once
-    let local = []; try { local = Object.keys(localStorage).filter(k => k.startsWith('ha.contact.')); } catch {}
-    for (const k of local) {
-      const name = k.slice(11);
-      if (store.get(k) && !contacts.map[name]) await contactCall(`?m=${encodeURIComponent(name)}&on=1&t=${+store.get(k) || 0}`, 'POST');
-      try { localStorage.removeItem(k); } catch {}
-    }
-  } catch (e) { contacts.err = e instanceof TypeError ? HELPER_GONE : e.message; }
-  renderAlerts();
+    if (SHARE_MODE === 'helper') {
+      await contactCall('');
+      for (const k of localTicks()) {
+        const name = k.slice(11);
+        if (!contacts.map[name]) await contactCall(`?m=${encodeURIComponent(name)}&on=1&t=${+store.get(k) || 0}`, 'POST');
+        dropLocalTick(k);
+      }
+    } else { contacts.map = await readContactsFile(); contacts.err = ''; }
+  } catch (e) { contacts.err = e instanceof TypeError && SHARE_MODE === 'helper' ? HELPER_GONE : e.message; }
+  if (JSON.stringify(contacts.map) + contacts.err !== before) renderAlerts();
 }
 async function setContact(name, on) {
-  if (!contacts.shared) { store.set('ha.contact.' + name, on ? String(Date.now()) : ''); renderAlerts(); return; }
+  const key = 'ha.contact.' + name;
+  if (!contactsShared()) { store.set(key, on ? String(Date.now()) : ''); renderAlerts(); return; }
   contacts.busy.add(name); renderAlerts();
-  try { await contactCall(`?m=${encodeURIComponent(name)}&on=${on ? 1 : 0}`, 'POST'); }
-  catch (e) { toast(e instanceof TypeError ? HELPER_GONE : e.message, 8000); }
+  try {
+    if (SHARE_MODE === 'helper') await contactCall(`?m=${encodeURIComponent(name)}&on=${on ? 1 : 0}`, 'POST');
+    else {
+      const pending = localTicks().filter(k => k !== key);
+      await writeContactsFile([[name, on ? Date.now() : 0]], pending.map(k => [k.slice(11), +store.get(k)]));
+      pending.forEach(dropLocalTick);
+    }
+    dropLocalTick(key);
+  } catch (e) { toast(e instanceof TypeError && SHARE_MODE === 'helper' ? HELPER_GONE : e.message, 8000); }
   contacts.busy.delete(name); renderAlerts();
+}
+// Browser-only: put the ticks kept in this browser into the shared file (from the "Share them" button)
+async function shareLocalTicks() {
+  const pending = localTicks();
+  try { await writeContactsFile([], pending.map(k => [k.slice(11), +store.get(k)])); pending.forEach(dropLocalTick); }
+  catch (e) { toast(e.message, 8000); }
+  renderAlerts();
 }
 // Errors logged after the contact, compared on the dispenser's clock (event times are local time stored as UTC)
 const errorsSince = (name, last) => { const c = contactOf(name); return !!c && last != null && last > c - new Date(c).getTimezoneOffset() * 60000; };
@@ -1779,12 +1820,16 @@ function renderAlerts() {
     if (quiet.length && hit.length) html += `<p class="al-quiet">No pump filled less than 10% in ${win}: ${quiet.map(r => esc(r.shop || r.name)).join(', ')}.</p>`;
   }
   if (contacts.err) html += `<p class="al-quiet"><span class="flag warn">Contacted ticks not shared</span> ${esc(contacts.err)}</p>`;
+  const pendingTicks = localTicks().length;
+  if (pendingTicks && contactsShared() && SHARE_MODE === 'local') html += `<p class="al-quiet"><span class="flag warn">${pendingTicks} contacted tick${pendingTicks > 1 ? 's' : ''} only in this browser</span> Colleagues don't see ${pendingTicks > 1 ? 'them' : 'it'} yet. <button class="btn" type="button" data-share-ticks>Share them</button></p>`;
+  else if (pendingTicks && !contactsShared() && rows.length) html += `<p class="al-quiet"><span class="flag warn">Contacted ticks only in this browser</span> Choose the share folder below to share them with colleagues.</p>`;
   if (alerts.err.size) html += `<p class="al-quiet">Couldn't scan: ${[...alerts.err].map(([n, m]) => `<b>${esc(shopOf(n) || n)}</b> (${esc(m)})`).join('; ')}.</p>`;
   const body = $('#al-body');
   body.innerHTML = html;
   body.querySelectorAll('[data-al-open]').forEach(b => b.addEventListener('click', () => openShare(b.dataset.alOpen, 'errors')));
   body.querySelectorAll('[data-al-ack]').forEach(b => b.addEventListener('click', () => { const r = alerts.res.get(b.dataset.alAck); if (r?.events.length) ackShop(b.dataset.alAck, r.events[r.events.length - 1][0]); renderAlerts(); }));
   body.querySelectorAll('[data-al-contact]').forEach(b => b.addEventListener('change', () => setContact(b.dataset.alContact, b.checked)));
+  body.querySelector('[data-share-ticks]')?.addEventListener('click', shareLocalTicks);
   renderTravel();
 }
 /* Travel of one colorant (W1W unless another is chosen) on every scanned shop: piston & tube travel
@@ -1973,6 +2018,7 @@ $('#al-from').addEventListener('change', e => { const t = Date.parse(e.target.va
 $('#al-to').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); if (isNaN(t)) return; alerts.to = Math.max(alerts.from + DAY - 1, t + DAY - 1); alerts.preset = 'custom'; renderAlerts(); });
 // colleagues' contacted ticks show up when you come back to this window
 addEventListener('focus', () => { if (alerts.res.size) loadContacts(); });
+setInterval(() => { if (!document.hidden && alerts.res.size) loadContacts(); }, 60000);
 renderAlerts();
 fetchShare(false);
 $('#file-in').addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; });

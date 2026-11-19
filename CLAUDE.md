@@ -6,5 +6,6 @@
   Don't commit or push by hand unless asked; leave nothing half-done at the end of a turn, because it gets published.
 - The current page is `HA Dispenser Insights 7.0.html`. When a new version is made, also point `index.html`
   (both links) and `$Page` in `Start HA Dispenser Insights.ps1` at it.
-- On GitHub Pages the page runs without the local helper: no closing of `it_pos_app.exe`, the share is read
-  through the browser's folder picker, and contacted ticks stay in that browser. Keep that mode working.
+- On GitHub Pages the page runs without the local helper: no closing of `it_pos_app.exe`, and the share is read
+  through the browser's folder picker. Contacted ticks are still shared: the browser writes
+  `HA Dispenser Insights contacts.json` in that folder itself, in the same format as the helper. Keep that mode working.
