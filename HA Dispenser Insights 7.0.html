@@ -256,6 +256,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
 .al-contact input { width: 16px; height: 16px; margin: 0; accent-color: var(--forest); cursor: pointer; }
 .al-contact.on { color: var(--good-ink); font-weight: 600; }
 .al-contact.on .muted { font-weight: 400; }
+.al-prev { font-size: 11.5px; color: var(--warn-ink); margin: 2px 0 0 23px; }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 @media (prefers-reduced-motion: no-preference) { .tabs button, .btn, .seg button { transition: background-color .12s, border-color .12s, color .12s; } }
 </style>
@@ -301,7 +302,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
           <button class="btn" type="button" id="al-back" hidden></button>
         </div></div>
       <div id="al-body"></div>
-      <p class="note">Every shop backup on the file share is checked for the Autodrive 2 error <b>pump filled less than 10%</b>. <b>New</b> counts the errors logged since you last opened that shop or marked it as seen; this browser remembers that per shop. <b>Contacted</b> is shared with everyone: the ticks are kept in <span class="mono">HA Dispenser Insights contacts.json</span> on the file share, with who ticked them, and colleagues' ticks show up within a minute. Opened without <span class="mono">Start HA Dispenser Insights.cmd</span>, the browser asks once for permission to save in the share folder and once for your name. Only backups that changed since the last scan are read again.</p>
+      <p class="note">Every shop backup on the file share is checked for the Autodrive 2 error <b>pump filled less than 10%</b>. <b>New</b> counts the errors logged since you last opened that shop or marked it as seen; this browser remembers that per shop. <b>Contacted</b> is shared with everyone: the ticks are kept in <span class="mono">HA Dispenser Insights contacts.json</span> on the file share, with who ticked them, and colleagues' ticks show up within a minute. A tick covers the errors logged up to that moment: a newer error clears it, so the shop shows as not contacted again. Opened without <span class="mono">Start HA Dispenser Insights.cmd</span>, the browser asks once for permission to save in the share folder and once for your name. Only backups that changed since the last scan are read again.</p>
     </section>
     <section class="plate" id="travel" hidden>
       <div class="plate-head"><h2 id="tr-title"></h2>
@@ -1730,7 +1731,11 @@ async function shareLocalTicks() {
   renderAlerts();
 }
 // Errors logged after the contact, compared on the dispenser's clock (event times are local time stored as UTC)
-const errorsSince = (name, last) => { const c = contactOf(name); return !!c && last != null && last > c - new Date(c).getTimezoneOffset() * 60000; };
+const contactWall = name => { const c = contactOf(name); return c ? c - new Date(c).getTimezoneOffset() * 60000 : 0; };
+// A tick covers the errors logged up to the moment it was set; a newer error clears it again
+const contactCovers = (name, t) => { const w = contactWall(name); return !!w && t <= w; };
+// Contacted about the shop's newest error (over all data, not only the period shown)
+const contactCurrent = (name, r) => !!contactOf(name) && (!r.events.length || contactCovers(name, r.events[r.events.length - 1][0]));
 function ackShop(name, t) { if (t > ackOf(name)) store.set('ha.ack.' + name, String(t)); }
 async function scanShops() {
   if (!share.items) return;
@@ -1801,12 +1806,13 @@ function renderAlerts() {
   } else {
     html += `<div class="kpis">
       <div class="kpi ${nNew ? 'alert' : ''}"><span class="label">Shops with new alerts</span><span class="v">${nNew}</span><span class="s">${fNum(hit.reduce((a, r) => a + r.nNew, 0))} errors you haven't seen yet</span></div>
-      <div class="kpi"><span class="label">Shops with pump &lt; 10%</span><span class="v">${hit.length}<small>of ${rows.length}</small></span><span class="s">in ${win} · ${fNum(hit.filter(r => contactOf(r.name)).length)} contacted</span></div>
+      <div class="kpi"><span class="label">Shops with pump &lt; 10%</span><span class="v">${hit.length}<small>of ${rows.length}</small></span><span class="s">in ${win} · ${fNum(hit.filter(r => contactCurrent(r.name, r.r)).length)} contacted</span></div>
       <div class="kpi"><span class="label">Errors logged</span><span class="v">${fNum(hit.reduce((a, r) => a + r.n, 0))}</span><span class="s">on ${fNum(hit.reduce((a, r) => a + r.chs.length, 0))} channels</span></div>
       <div class="kpi ${alerts.err.size ? 'alert' : ''}"><span class="label">Last scan</span><span class="v" style="font-size:18px;line-height:1.5">${alerts.scannedAt ? fLocal(alerts.scannedAt) : '–'}</span><span class="s">${alerts.err.size ? `${alerts.err.size} shop${alerts.err.size > 1 ? 's' : ''} couldn't be read` : old ? `${old} backup${old > 1 ? 's' : ''} older than 3 days` : 'all backups from the last 3 days'}</span></div>
     </div>`;
     html += hit.length ? `<div class="tscroll"><table><thead><tr><th>Shop</th><th class="num">Errors</th><th>Seen</th><th>Channels</th><th>Last error</th><th>Backup from</th><th>Contacted</th><th></th></tr></thead><tbody>${hit.map(r => {
-      const age = (Date.now() - r.r.ts) / DAY, c = contactOf(r.name);
+      const age = (Date.now() - r.r.ts) / DAY, c = contactOf(r.name), cur = contactCurrent(r.name, r.r);
+      const when = c ? `${fLocal(c).slice(0, -6)}${contactBy(r.name) ? ' · ' + esc(contactBy(r.name)) : ''}` : '';
       return `<tr class="${r.nNew ? 'al-new' : ''}">
         ${shopCell(r)}
         <td class="num"><b>${fNum(r.n)}</b></td>
@@ -1814,7 +1820,7 @@ function renderAlerts() {
         <td><div class="al-chs">${r.chs.map(([c, k]) => `<span class="chip">${c} ${esc(r.r.colorants[c] || '')}${k > 1 ? ` ×${k}` : ''}</span>`).join('')}</div></td>
         <td class="mono">${fDateTime(r.last)}</td>
         <td class="mono">${fLocal(r.r.ts)}${age > 3 ? ` <span class="flag warn">${fNum(Math.floor(age))} days old</span>` : ''}</td>
-        <td><label class="al-contact${c ? ' on' : ''}"><input type="checkbox" data-al-contact="${esc(r.name)}"${c ? ' checked' : ''}${contacts.busy.has(r.name) ? ' disabled' : ''}><span>${c ? `Contacted <span class="mono muted" title="${fLocal(c)}${contactBy(r.name) ? ' by ' + esc(contactBy(r.name)) : ''}">${fLocal(c).slice(0, -6)}${contactBy(r.name) ? ' · ' + esc(contactBy(r.name)) : ''}</span>` : 'Not contacted'}</span></label>${errorsSince(r.name, r.last) ? '<div><span class="flag warn">errors since</span></div>' : ''}</td>
+        <td><label class="al-contact${cur ? ' on' : ''}"><input type="checkbox" data-al-contact="${esc(r.name)}"${cur ? ' checked' : ''}${contacts.busy.has(r.name) ? ' disabled' : ''}><span>${cur ? `Contacted <span class="mono muted" title="${fLocal(c)}">${when}</span>` : 'Not contacted'}</span></label>${c && !cur ? `<div class="al-prev" title="${fLocal(c)}">last contacted ${when}, before the newest error</div>` : ''}</td>
         <td><div class="al-acts">${r.nNew ? `<button class="btn" type="button" data-al-ack="${esc(r.name)}">Mark as seen</button>` : ''}<button class="btn" type="button" data-al-open="${esc(r.name)}">Open</button></div></td></tr>`; }).join('')}</tbody></table></div>`
       : `<div class="empty">No shop logged "pump filled less than 10%" in ${win}.</div>`;
     if (quiet.length && hit.length) html += `<p class="al-quiet">No pump filled less than 10% in ${win}: ${quiet.map(r => esc(r.shop || r.name)).join(', ')}.</p>`;
@@ -1943,12 +1949,16 @@ const csvToday = () => csvLocal(Date.now()).slice(0, 10);
 function exportAlerts() {
   const rows = alertRows(), { from, to } = alerts, out = [];
   for (const x of rows.filter(x => x.n)) {
-    const ack = ackOf(x.name), ct = contactOf(x.name), contacted = ct ? csvLocal(ct) : 'No', since = errorsSince(x.name, x.last) ? 'Yes' : '';
-    for (const [t, c] of x.r.events) if (t >= from && t <= to) out.push([x.shop || x.name, x.name, csvWall(t), c, x.r.colorants[c] || '', t > ack ? 'New' : 'Seen', contacted, since, csvLocal(x.r.ts)]);
+    // per error: contacted only when the tick was set after that error was logged
+    const ack = ackOf(x.name), ct = contactOf(x.name), by = contactBy(x.name);
+    for (const [t, c] of x.r.events) if (t >= from && t <= to) {
+      const covered = contactCovers(x.name, t);
+      out.push([x.shop || x.name, x.name, csvWall(t), c, x.r.colorants[c] || '', t > ack ? 'New' : 'Seen', covered ? csvLocal(ct) : 'No', covered ? by : '', csvLocal(x.r.ts)]);
+    }
   }
   out.sort((a, b) => a[0].localeCompare(b[0]) || b[2].localeCompare(a[2]));
   const period = alerts.preset === 'all' ? 'all-data' : alerts.preset === 'custom' ? `${fIso(from)}_to_${fIso(to)}` : alerts.preset === '365' ? '12-months' : `${alerts.preset}-days`;
-  downloadCsv(`pump-filled-less-than-10pct_${period}_${csvToday()}.csv`, ['Shop', 'Folder', 'Error time', 'Channel', 'Colorant', 'Status', 'Contacted', 'Errors since contact', 'Backup from'], out);
+  downloadCsv(`pump-filled-less-than-10pct_${period}_${csvToday()}.csv`, ['Shop', 'Folder', 'Error time', 'Channel', 'Colorant', 'Status', 'Contacted about this error', 'Contacted by', 'Backup from'], out);
 }
 function exportTravel() {
   const col = travelCol(), by = travelBy(), rows = travelRows(col, by);
