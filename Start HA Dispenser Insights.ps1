@@ -78,7 +78,8 @@ function Get-ShareFile([string]$name) {
   finally { $fs.Dispose() }
 }
 
-# Contacted shops: { "<shop folder>": { "t": <ms since 1970>, "by": "<Windows user>" } }
+# Contacted shops: { "<shop folder>": { "t": <ms since 1970>, "by": "<Windows user>", "history": [ { "t", "by" }, ... ] } }
+# t/by = the latest contact; history = the earlier ones, oldest first. The page writes the same format.
 function ConvertTo-ContactMap([string]$text) {
   $map = [ordered]@{}
   if ($text.Trim()) { foreach ($p in ($text | ConvertFrom-Json).PSObject.Properties) { $map[$p.Name] = $p.Value } }
@@ -111,9 +112,16 @@ function Set-Contact([string]$name, [bool]$on, [long]$at = 0) {
     $map = ConvertTo-ContactMap $sr.ReadToEnd()
     # $at: an earlier contact time (ms) when a tick kept in the browser moves to the share; never in the future
     $now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    if ($on) { $map[$name] = [ordered]@{ t = $(if ($at -gt 0 -and $at -lt $now) { $at } else { $now }); by = $env:USERNAME } }
+    # A new contact keeps the previous one in the history; unticking undoes only the latest contact
+    $old = $map[$name]
+    $history = @(if ($old -and $old.history) { $old.history })
+    if ($on) {
+      if ($old) { $history += [ordered]@{ t = $old.t; by = $old.by } }
+      $map[$name] = [ordered]@{ t = $(if ($at -gt 0 -and $at -lt $now) { $at } else { $now }); by = $env:USERNAME; history = $history }
+    }
+    elseif ($history.Count) { $prev = $history[-1]; $map[$name] = [ordered]@{ t = $prev.t; by = $prev.by; history = @($history | Select-Object -SkipLast 1) } }
     else { $map.Remove($name) }
-    $bytes = $utf8.GetBytes((ConvertTo-Json -InputObject $map -Compress -Depth 4))
+    $bytes = $utf8.GetBytes((ConvertTo-Json -InputObject $map -Compress -Depth 6))
     $fs.SetLength(0); $fs.Write($bytes, 0, $bytes.Length)
     Write-Host "$(Get-Date -Format HH:mm:ss)  $name marked as $(if ($on) { 'contacted' } else { 'not contacted' })."
     return $map
@@ -176,7 +184,7 @@ function Invoke-Request($client) {
       else { $res = @{ items = Set-Contact $name ($q['on'] -eq '1') $(if ($q['t'] -match '^\d{1,15}$') { [long]$q['t'] } else { 0 }) } }
     }
     catch { $ex = $_.Exception; while ($ex.InnerException) { $ex = $ex.InnerException }; $res = @{ error = "Couldn't use the contacts file on the share ($($ex.Message))" } }
-    Send-Response $stream 200 'application/json' $utf8.GetBytes((ConvertTo-Json -InputObject $res -Compress -Depth 5))
+    Send-Response $stream 200 'application/json' $utf8.GetBytes((ConvertTo-Json -InputObject $res -Compress -Depth 7))
   }
   else { Send-Response $stream 404 'text/plain' $utf8.GetBytes('Not found') }
 }

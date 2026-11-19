@@ -257,6 +257,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
 .al-contact.on { color: var(--good-ink); font-weight: 600; }
 .al-contact.on .muted { font-weight: 400; }
 .al-prev { font-size: 11.5px; color: var(--warn-ink); margin: 2px 0 0 23px; }
+.al-hist { font-size: 11.5px; color: var(--muted); margin: 2px 0 0 23px; white-space: normal; max-width: 260px; }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 @media (prefers-reduced-motion: no-preference) { .tabs button, .btn, .seg button { transition: background-color .12s, border-color .12s, color .12s; } }
 </style>
@@ -1658,7 +1659,8 @@ function alertsPeriodText() {
 { const p = store.get('ha.alpreset') || store.get('ha.alwin'); setAlertsPreset(['all', '365', '90', '30', '7'].includes(p) ? p : '30'); }
 const ackOf = name => +store.get('ha.ack.' + name) || 0;
 /* When the shop was contacted about its pump alerts (real time, ms), 0 = not contacted.
-   The ticks of the whole team live in one file in the root of the share folder ({ folder: { t, by } }).
+   The ticks of the whole team live in one file in the root of the share folder
+   ({ folder: { t, by, history: [{ t, by }, …] } }: t/by = the latest contact, history = the earlier ones, oldest first).
    Through the helper, the helper writes it under the Windows user name. Without the helper (e.g. on GitHub Pages)
    the browser writes it itself in the share folder it was given; it asks once per session for permission to save
    there, and once for the name to show. Without a share folder the ticks stay in this browser ('ha.contact.*'),
@@ -1669,7 +1671,6 @@ const contactsShared = () => SHARE_MODE === 'helper' || (SHARE_MODE === 'local' 
 const localTicks = () => { try { return Object.keys(localStorage).filter(k => k.startsWith('ha.contact.') && store.get(k)); } catch { return []; } };
 const dropLocalTick = k => { try { localStorage.removeItem(k); } catch {} };
 const contactOf = name => +contacts.map[name]?.t || +store.get('ha.contact.' + name) || 0;
-const contactBy = name => contacts.map[name]?.by || '';
 async function contactCall(query, method = 'GET') {
   const j = await (await fetch('/contacts' + query, { method, headers: { 'X-Helper-Token': POS.token } })).json();
   if (j.error) throw new Error(j.error);
@@ -1682,14 +1683,22 @@ async function readContactsFile(fh) {
 // Browser-only: change the file in the share folder. It is read again right before writing, so ticks a colleague
 // saved in the meantime are kept; pending ticks from this browser are added only where the file has none.
 // Must be called straight from a click: the browser only asks for permission after one.
+// One tick (t) or untick (t = 0), as the helper's Set-Contact does it: a new contact keeps the previous one
+// in the history; an untick undoes only the latest contact and brings back the one before it
+function applyContact(map, name, t, by) {
+  const e = map[name], history = [...(e?.history || [])];
+  if (t) { if (e) history.push({ t: e.t, by: e.by }); map[name] = { t, by, history }; return; }
+  const prev = history.pop();
+  if (prev) map[name] = { t: prev.t, by: prev.by, history }; else delete map[name];
+}
 async function writeContactsFile(changes, pending = []) {
   if (await share.dir.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error("The browser wasn't allowed to save in the share folder, so the tick isn't shared.");
   let by = store.get('ha.myname');
   if (!by) { by = (prompt('Your name, shown to colleagues next to the shops you mark as contacted:') || '').trim(); if (by) store.set('ha.myname', by); }
   const fh = await share.dir.getFileHandle(CONTACTS_FILE, { create: true });
   const map = await readContactsFile(fh);
-  for (const [name, t] of pending) if (!map[name]) map[name] = { t, by };
-  for (const [name, t] of changes) { if (t) map[name] = { t, by }; else delete map[name]; }
+  for (const [name, t] of pending) if (!map[name]) map[name] = { t, by, history: [] };
+  for (const [name, t] of changes) applyContact(map, name, t, by);
   const w = await fh.createWritable(); await w.write(JSON.stringify(map)); await w.close();
   contacts.map = map; contacts.err = '';
 }
@@ -1731,11 +1740,18 @@ async function shareLocalTicks() {
   renderAlerts();
 }
 // Errors logged after the contact, compared on the dispenser's clock (event times are local time stored as UTC)
-const contactWall = name => { const c = contactOf(name); return c ? c - new Date(c).getTimezoneOffset() * 60000 : 0; };
-// A tick covers the errors logged up to the moment it was set; a newer error clears it again
-const contactCovers = (name, t) => { const w = contactWall(name); return !!w && t <= w; };
-// Contacted about the shop's newest error (over all data, not only the period shown)
-const contactCurrent = (name, r) => !!contactOf(name) && (!r.events.length || contactCovers(name, r.events[r.events.length - 1][0]));
+const toWall = c => c - new Date(c).getTimezoneOffset() * 60000;
+// Every contact with the shop, oldest first: the history plus the latest (or a tick kept only in this browser)
+function contactList(name) {
+  const e = contacts.map[name], local = +store.get('ha.contact.' + name) || 0;
+  const list = e ? [...(e.history || []), { t: e.t, by: e.by }] : local ? [{ t: local, by: '' }] : [];
+  return list.filter(c => c.t).sort((a, b) => a.t - b.t);
+}
+// A tick covers the errors logged up to the moment it was set: the contact about an error is the first one after it
+const contactFor = (name, t) => contactList(name).find(c => toWall(c.t) >= t) || null;
+// Contacted about the shop's newest error (over all data, not only the period shown); a newer error clears it
+const contactCurrent = (name, r) => !!contactOf(name) && (!r.events.length || toWall(contactOf(name)) >= r.events[r.events.length - 1][0]);
+const contactText = c => `${fLocal(c.t).slice(0, -6)}${c.by ? ' · ' + esc(c.by) : ''}`;
 function ackShop(name, t) { if (t > ackOf(name)) store.set('ha.ack.' + name, String(t)); }
 async function scanShops() {
   if (!share.items) return;
@@ -1812,7 +1828,11 @@ function renderAlerts() {
     </div>`;
     html += hit.length ? `<div class="tscroll"><table><thead><tr><th>Shop</th><th class="num">Errors</th><th>Seen</th><th>Channels</th><th>Last error</th><th>Backup from</th><th>Contacted</th><th></th></tr></thead><tbody>${hit.map(r => {
       const age = (Date.now() - r.r.ts) / DAY, c = contactOf(r.name), cur = contactCurrent(r.name, r.r);
-      const when = c ? `${fLocal(c).slice(0, -6)}${contactBy(r.name) ? ' · ' + esc(contactBy(r.name)) : ''}` : '';
+      // latest contact on the tick line; earlier ones (newest first) on a small line under it, all of them on hover
+      const list = contactList(r.name), latest = list[list.length - 1], earlier = list.slice(0, -1).reverse();
+      const when = latest ? contactText(latest) : '';
+      const all = esc([...list].reverse().map(x => fLocal(x.t) + (x.by ? ' · ' + x.by : '')).join('\n'));
+      const hist = earlier.length ? `<div class="al-hist" title="${all}">earlier: ${earlier.slice(0, 2).map(contactText).join(', ')}${earlier.length > 2 ? ` +${earlier.length - 2} more` : ''}</div>` : '';
       return `<tr class="${r.nNew ? 'al-new' : ''}">
         ${shopCell(r)}
         <td class="num"><b>${fNum(r.n)}</b></td>
@@ -1820,7 +1840,7 @@ function renderAlerts() {
         <td><div class="al-chs">${r.chs.map(([c, k]) => `<span class="chip">${c} ${esc(r.r.colorants[c] || '')}${k > 1 ? ` ×${k}` : ''}</span>`).join('')}</div></td>
         <td class="mono">${fDateTime(r.last)}</td>
         <td class="mono">${fLocal(r.r.ts)}${age > 3 ? ` <span class="flag warn">${fNum(Math.floor(age))} days old</span>` : ''}</td>
-        <td><label class="al-contact${cur ? ' on' : ''}"><input type="checkbox" data-al-contact="${esc(r.name)}"${cur ? ' checked' : ''}${contacts.busy.has(r.name) ? ' disabled' : ''}><span>${cur ? `Contacted <span class="mono muted" title="${fLocal(c)}">${when}</span>` : 'Not contacted'}</span></label>${c && !cur ? `<div class="al-prev" title="${fLocal(c)}">last contacted ${when}, before the newest error</div>` : ''}</td>
+        <td><label class="al-contact${cur ? ' on' : ''}"><input type="checkbox" data-al-contact="${esc(r.name)}"${cur ? ' checked' : ''}${contacts.busy.has(r.name) ? ' disabled' : ''}><span>${cur ? `Contacted <span class="mono muted" title="${all}">${when}</span>` : 'Not contacted'}</span></label>${c && !cur ? `<div class="al-prev" title="${all}">last contacted ${when}, before the newest error</div>` : ''}${hist}</td>
         <td><div class="al-acts">${r.nNew ? `<button class="btn" type="button" data-al-ack="${esc(r.name)}">Mark as seen</button>` : ''}<button class="btn" type="button" data-al-open="${esc(r.name)}">Open</button></div></td></tr>`; }).join('')}</tbody></table></div>`
       : `<div class="empty">No shop logged "pump filled less than 10%" in ${win}.</div>`;
     if (quiet.length && hit.length) html += `<p class="al-quiet">No pump filled less than 10% in ${win}: ${quiet.map(r => esc(r.shop || r.name)).join(', ')}.</p>`;
@@ -1949,11 +1969,11 @@ const csvToday = () => csvLocal(Date.now()).slice(0, 10);
 function exportAlerts() {
   const rows = alertRows(), { from, to } = alerts, out = [];
   for (const x of rows.filter(x => x.n)) {
-    // per error: contacted only when the tick was set after that error was logged
-    const ack = ackOf(x.name), ct = contactOf(x.name), by = contactBy(x.name);
+    // per error: the first contact made after that error was logged (from the shop's whole contact history)
+    const ack = ackOf(x.name);
     for (const [t, c] of x.r.events) if (t >= from && t <= to) {
-      const covered = contactCovers(x.name, t);
-      out.push([x.shop || x.name, x.name, csvWall(t), c, x.r.colorants[c] || '', t > ack ? 'New' : 'Seen', covered ? csvLocal(ct) : 'No', covered ? by : '', csvLocal(x.r.ts)]);
+      const k = contactFor(x.name, t);
+      out.push([x.shop || x.name, x.name, csvWall(t), c, x.r.colorants[c] || '', t > ack ? 'New' : 'Seen', k ? csvLocal(k.t) : 'No', k ? k.by : '', csvLocal(x.r.ts)]);
     }
   }
   out.sort((a, b) => a[0].localeCompare(b[0]) || b[2].localeCompare(a[2]));
