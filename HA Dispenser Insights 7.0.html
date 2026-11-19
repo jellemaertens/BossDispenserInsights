@@ -351,6 +351,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
     <button role="tab" data-tab="errors">Errors</button>
     <button role="tab" data-tab="usage">Usage</button>
     <button role="tab" data-tab="climate">Climate</button>
+    <button role="tab" data-tab="brush">Brush</button>
   </nav>
 
   <main id="view" class="panel" data-needs-data hidden></main>
@@ -548,7 +549,8 @@ const MDF = (() => {
     const dev = device(T);
     const devId = dev[0];
     const typeNum = new Map(all(T.EventTypes, ['Id', 'Number']).map(([id, n]) => [id, n]));
-    const WANT = new Set([108, 104, 105, 106, 128, 130, 139, 23, 29, 142, 24, 34]);
+    // 5/6 brush tray out/in, 13/14 flushing, 19/20 cleaning round
+    const WANT = new Set([108, 104, 105, 106, 128, 130, 139, 23, 29, 142, 24, 34, 5, 6, 13, 14, 19, 20]);
     const ev = new Map();
     { const el = T.EventLog, rId = el.reader('Id'), rDev = el.reader('DeviceId'), rEv = el.reader('EventId'), rDate = el.reader('Date');
       for (const rec of el.rows()) { if (rDev(rec) !== devId) continue; const num = typeNum.get(rEv(rec)); if (WANT.has(num)) ev.set(rId(rec), { id: rId(rec), num, t: rDate(rec), f: null, s: null }); } }
@@ -565,7 +567,7 @@ const MDF = (() => {
     const F = (e, i) => e.f?.[i] ?? null, S = (e, i) => e.s?.[i] ?? null;
     const num = v => v == null || v === '' || isNaN(+v) ? null : +v;
     const iso = t => t == null ? null : new Date(t).toISOString().slice(0, 10);
-    const raw = { ad2m: [], ad2f: [], ad2e: [], disp: [], jobs: [], refill: [], errs: [], climate: [], service: [], slack: [] };
+    const raw = { ad2m: [], ad2f: [], ad2e: [], disp: [], jobs: [], refill: [], errs: [], climate: [], service: [], slack: [], brush: [] };
     const dispAgg = new Map(), jobAgg = new Map();
     for (const e of events) {
       if (e.t < t0) continue;
@@ -581,6 +583,7 @@ const MDF = (() => {
         case 142: raw.service.push([mins(e.t), num(S(e, 2)), 'Piston & tube replaced' + (S(e, 4) ? ': ' + S(e, 4) : '') + (S(e, 3) ? ` (${S(e, 3)})` : '')]); break;
         case 24: raw.service.push([mins(e.t), null, 'Machine start-up, firmware ' + (S(e, 1) || '?')]); break;
         case 34: raw.slack.push([mins(e.t), F(e, 1)]); break;
+        case 5: case 6: case 13: case 14: case 19: case 20: raw.brush.push([Math.floor((e.t - t0) / 1000), e.num]); break;   // seconds: a cleaning round takes about 25 s
       }
     }
     raw.disp = [...dispAgg.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -717,7 +720,34 @@ function prepare(raw) {
     const e = eff.get(c.n); c.effNow = c.intakePct ?? (e ? e[e.length - 1][1] : 100);
     if (c.intakePct == null && !e) c.effNow = null;
   }
-  return { meta: raw.meta, ch, meas, corr, aerr, disp, jobs, refill, errs, climate, service, slack, level, eff, minT: Math.floor(minT / DAY) * DAY, maxT, model, active, hasLevel: level.size > 0 };
+  return { meta: raw.meta, ch, meas, corr, aerr, disp, jobs, refill, errs, climate, service, slack, level, eff, brush: prepBrush(raw.brush || [], s => t0 + s * 1000), minT: Math.floor(minT / DAY) * DAY, maxT, model, active, hasLevel: level.size > 0 };
+}
+/* Brush: a clean = brush tray taken out (5) and put back (6); taking it out again within 30 minutes of putting it
+   back counts as the same clean. Automatic cycles: cleaning round (19 → 20) and flushing (13 → 14). */
+function prepBrush(rows, ts) {
+  const ev = rows.map(([s, k]) => ({ t: ts(s), k }));
+  const trips = []; let cur = null;
+  for (const e of ev) {
+    if (e.k === 5) { if (cur) trips.push(cur); cur = { out: e.t, in: null }; }
+    else if (e.k === 6) { if (cur) { cur.in = e.t; trips.push(cur); cur = null; } else trips.push({ out: null, in: e.t }); }
+  }
+  if (cur) trips.push(cur);
+  const cleans = [];
+  for (const s of trips) {
+    const p = cleans[cleans.length - 1], t = s.out ?? s.in, ms = s.out != null && s.in != null ? s.in - s.out : null;
+    if (p && p.in != null && t - p.in <= 30 * 60000) { p.in = s.in; p.n++; p.outMs = p.outMs != null && ms != null ? p.outMs + ms : null; continue; }
+    cleans.push({ t, out: s.out, in: s.in, outMs: ms, n: 1 });
+  }
+  const runs = (a, b) => {
+    const out = []; let start = null;
+    for (const e of ev) {
+      if (e.k === a) { if (start != null) out.push({ t: start, dur: null }); start = e.t; }
+      else if (e.k === b && start != null) { out.push({ t: start, dur: e.t - start }); start = null; }
+    }
+    if (start != null) out.push({ t: start, dur: null, running: true });   // still running when the backup was made
+    return out;
+  };
+  return { cleans, rounds: runs(19, 20), flushes: runs(13, 14) };
 }
 function errGroup(msg, sh) {
   const m = msg.match(/^on command "([^"]+)"/);
@@ -736,7 +766,7 @@ function stepsOn(c, t) { const o = D.meas.get(c); if (!o) return null; const d0 
 function effClass(v) { return v == null ? '' : v < 80 ? 'low' : v < 100 ? 'mid' : ''; }
 
 /* ---------- state ---------- */
-const S = { preset: 'all', from: 0, to: 0, tab: 'overview', sel: [], unit: 'steps', model: 'HA480', heat: 'rel', errQ: '', sort: { key: 'status', dir: -1 }, lvlSort: 'days', pumpSort: 'travel' };
+const S = { preset: 'all', from: 0, to: 0, tab: 'overview', sel: [], unit: 'steps', model: 'HA480', heat: 'rel', errQ: '', sort: { key: 'status', dir: -1 }, lvlSort: 'days', pumpSort: 'travel', brushT: [3, 5, 7, 10, 14].includes(+store.get('ha.brushT')) ? +store.get('ha.brushT') : 7 };
 function setPreset(p) {
   S.preset = p;
   S.to = Math.floor(D.maxT / DAY) * DAY + DAY - 1;
@@ -928,14 +958,17 @@ function timeChart(host, o) {
       dots[i].setAttribute('cx', X(px)); dots[i].setAttribute('cy', Y(p[1])); dots[i].setAttribute('visibility', 'visible');
       rows.push(`<div class="r"><span><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</span><span>${o.vFmt ? o.vFmt(p[1], s, p) : fNum(p[1])}</span></div>`);
     });
-    if (o.bars) { const k = o.bars.pts.findIndex(p => t >= p[0] && t < p[0] + o.bars.width); if (k >= 0) { snapT = o.bars.pts[k][0]; rows.push(`<div class="r"><span>${esc(o.bars.name)}</span><span>${o.vFmt ? o.vFmt(o.bars.pts[k][1]) : fNum(o.bars.pts[k][1])}</span></div>`); } }
+    if (o.bars) {
+      let k = o.bars.pts.findIndex(p => t >= p[0] && t < p[0] + o.bars.width);
+      if (o.bars.nearest) { let best = Math.max(o.bars.width, 8 / iw * (x1 - x0)); k = -1; o.bars.pts.forEach((p, i) => { const d = Math.abs(t - p[0] - o.bars.width / 2); if (d < best) { best = d; k = i; } }); }
+      if (k >= 0) { snapT = o.bars.pts[k][0]; rows.push(`<div class="r"><span>${esc(o.bars.name)}</span><span>${o.vFmt ? o.vFmt(o.bars.pts[k][1]) : fNum(o.bars.pts[k][1])}</span></div>`); } }
     for (const b of o.bands || []) { let k = lowerBound(b.pts.map(p => p[0]), t - DAY / 2); const p = b.pts[k]; if (p && Math.abs(p[0] - t) < DAY) { snapT = p[0]; rows.push(`<div class="r"><span>${esc(b.name)}</span><span>${o.vFmt ? o.vFmt(p[1]) : fNum(p[1], 1)} – ${o.vFmt ? o.vFmt(p[2]) : fNum(p[2], 1)}</span></div>`); } }
     const tol = 7 / iw * (x1 - x0);
     const evs = [...(o.markers || []), ...(o.bottomMarkers || []), ...(o.vlines || [])].filter(mk => Math.abs(mk.t - t) <= tol).slice(0, 4);
     if (snapT == null && !evs.length) { hideTip(); cross.setAttribute('visibility', 'hidden'); return; }
     const ct = snapT ?? evs[0].t;
     cross.setAttribute('x1', X(ct)); cross.setAttribute('x2', X(ct)); cross.setAttribute('visibility', 'visible');
-    const title = o.bars ? `Week of ${fDate(ct)}` : (o.dayTitle ? fDate(ct) : fDateTime(ct));
+    const title = o.bars ? (o.bars.title ? o.bars.title(ct) : `Week of ${fDate(ct)}`) : (o.dayTitle ? fDate(ct) : fDateTime(ct));
     showTip(`<div class="t">${title}</div>${rows.join('')}${evs.map(e => `<div class="ev">${e.label}</div>`).join('')}`, ev.clientX, ev.clientY);
   };
   hit.addEventListener('pointermove', move);
@@ -1007,7 +1040,7 @@ function render() {
   if (!D) return;
   renderFilters(); renderTabs(); hideTip();
   const v = $('#view');
-  ({ overview: viewOverview, autodrive: viewAutodrive, levels: viewLevels, errors: viewErrors, usage: viewUsage, climate: viewClimate })[S.tab](v);
+  ({ overview: viewOverview, autodrive: viewAutodrive, levels: viewLevels, errors: viewErrors, usage: viewUsage, climate: viewClimate, brush: viewBrush })[S.tab](v);
 }
 
 function viewOverview(v) {
@@ -1455,9 +1488,117 @@ function viewClimate(v) {
   timeChart($('#ch-h', v), { x0: S.from, x1: S.to, height: 230, dayTitle: true, bands: [{ name: 'Min – max', fill: 'color-mix(in srgb, var(--s3) 20%, transparent)', stroke: css('--s3'), pts: cl.map(c => [c.t, c.hmin, c.hmax]) }], yFmt: x => fNum(x, 0) + '%', vFmt: x => fNum(x, 0) + '%', aria: 'Daily humidity range' });
 }
 
+/* Brush maintenance: manual cleans (brush tray out → in) and the automatic cleaning round and flushing */
+function viewBrush(v) {
+  const B = D.brush, T = S.brushT, all = B.cleans;
+  if (!all.length && !B.rounds.length && !B.flushes.length) { v.innerHTML = '<section class="plate"><div class="empty">This database has no brush tray, cleaning round or flushing events.</div></section>'; return; }
+  const pad = x => String(x).padStart(2, '0'), hm = t => { const d = new Date(t); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; };
+  const fDur = ms => ms == null ? '–' : ms < 120000 ? fNum(ms / 1000) + ' s' : fNum(ms / 60000, 1) + ' min';
+  const atEnd = S.to >= D.maxT, endT = Math.min(S.to, D.maxT);
+  const cl = all.filter(c => inP(c.t));
+  // d = days between the two cleans; cd = calendar days, used for "late" (the same weekday a week later = 7)
+  const gap = (prev, t) => ({ t, prev, d: (t - prev) / DAY, cd: Math.floor(t / DAY) - Math.floor(prev / DAY) });
+  const gaps = all.slice(1).map((c, i) => gap(all[i].t, c.t));
+  const gapOf = new Map(gaps.map(g => [g.t, g]));
+  const gp = gaps.filter(g => inP(g.t));
+  const lastP = [...all].reverse().find(c => c.t <= endT);
+  const open = lastP && endT > lastP.t ? { ...gap(lastP.t, endT), open: true } : null;
+  const medGap = median(gp.map(g => g.d));
+  const longest = [...gp, ...(open && open.prev >= S.from ? [open] : [])].sort((a, b) => b.d - a.d)[0];
+  const late = gp.filter(g => g.cd > T), lateDays = late.reduce((a, g) => a + g.cd - T, 0);
+  const openLate = open && open.cd > T ? open.cd - T : 0;
+  const fOut = ms => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
+  const outs = cl.filter(c => c.outMs != null).map(c => c.outMs / 60000);
+  const longOut = outs.filter(m => m > 15).length;
+  const brushErrs = D.errs.filter(e => /brush/i.test(e.msg + ' ' + e.sh));
+  const bErr = brushErrs.filter(e => inP(e.t)), bInc = new Set(bErr.map(e => Math.floor(e.t / 60000))).size;
+  const errsWhileOut = c => c.out == null ? 0 : new Set(brushErrs.filter(e => e.t >= c.out && e.t <= (c.in ?? c.out) + 120000).map(e => Math.floor(e.t / 60000))).size;
+  // when the brush is cleaned
+  const wd = Array(7).fill(0), hr = Array(24).fill(0);
+  for (const c of cl) { const d = new Date(c.t); wd[(d.getUTCDay() + 6) % 7]++; hr[d.getUTCHours()]++; }
+  const hrs = hr.map((n, h) => [h, n]).filter(([, n]) => n);
+  const maxWd = Math.max(1, ...wd), maxHr = Math.max(1, ...hr);
+  const bar = (label, n, max) => `<tr><td class="mono">${label}</td><td><div class="inbar" style="min-width:140px"><div class="track"><div class="fill" style="width:${(n / max * 100).toFixed(1)}%"></div></div><span class="val">${n}</span></div></td></tr>`;
+  // automatic cycles
+  const dLast = atEnd ? Math.floor(D.maxT / DAY) - 1 : Math.floor(S.to / DAY);   // the last day of the data is not complete yet
+  const cyc = (name, runs, rx, what) => {
+    const r = runs.filter(x => inP(x.t)), byDay = new Map(), times = new Map();
+    for (const x of r) { const d = Math.floor(x.t / DAY); byDay.set(d, (byDay.get(d) || 0) + 1); const k = hm(x.t); times.set(k, (times.get(k) || 0) + 1); }
+    const usual = Math.max(1, Math.round(median([...byDay.values()]) || 1));
+    const d0 = Math.max(Math.floor(S.from / DAY), runs.length ? Math.floor(runs[0].t / DAY) : Infinity);
+    let short = 0, none = 0, days = 0;
+    for (let d = d0; d <= dLast; d++) { days++; const n = byDay.get(d) || 0; if (!n) none++; if (n < usual) short++; }
+    const usualTimes = [...times].filter(([, n]) => n >= r.length * 0.15).map(([k]) => k).sort().join(', ');
+    return { name, what, n: r.length, usual, days, short, none, times: usualTimes, dur: median(r.filter(x => x.dur != null).map(x => x.dur)), unfinished: r.filter(x => x.dur == null && !x.running).length, errs: D.errs.filter(e => inP(e.t) && rx.test(e.msg)).length };
+  };
+  const cycles = [cyc('Cleaning round', B.rounds, /during CLEANING ROUND/i, 'Cleaning start → Cleaning end'), cyc('Flushing', B.flushes, /during FLUSHING/i, 'Flushing start → Flushing end')];
+  const wk = new Map(); for (const c of cl) { const w = weekStart(c.t); wk.set(w, (wk.get(w) || 0) + 1); }
+  const log = cl.slice().sort((a, b) => b.t - a.t);
+  v.innerHTML = `
+  <div class="kpis">
+    <div class="kpi ${openLate ? 'alert' : ''}"><span class="label">Last brush clean</span><span class="v" style="font-size:20px;line-height:1.25">${lastP ? fDate(lastP.t) : '–'}</span><span class="s">${lastP ? `${fNum(open ? open.d : 0, 1)} days before ${atEnd ? 'the latest data' : 'the end of the period'}` : 'none in the data'}</span></div>
+    <div class="kpi"><span class="label">Brush cleans</span><span class="v">${fNum(cl.length)}</span><span class="s">${medGap != null ? `every ${fNum(medGap, 1)} days (median)` : 'too few for an interval'}</span></div>
+    <div class="kpi"><span class="label">Longest without a clean</span><span class="v">${longest ? fNum(longest.d, 0) : '–'}<small>days</small></span><span class="s">${longest ? (longest.open ? `since ${fDate(longest.prev)}, still open` : `${fDate(longest.prev)} – ${fDate(longest.t)}`) : ''}</span></div>
+    <div class="kpi ${late.length || openLate ? 'alert' : ''}"><span class="label">Later than every ${T} days</span><span class="v">${late.length}<small>of ${gp.length}</small></span><span class="s">${late.length ? `${fNum(lateDays)} day${lateDays === 1 ? '' : 's'} late in total, ${fNum(lateDays / late.length, 1)} per late clean` : 'all cleans in time'}${openLate ? ` · now ${fNum(openLate)} day${openLate === 1 ? '' : 's'} overdue` : ''}</span></div>
+    <div class="kpi"><span class="label">Tray out per clean</span><span class="v">${outs.length ? fOut(median(outs) * 60000) : '–'}<small>min</small></span><span class="s">${outs.length ? `median · longest ${fNum(Math.max(...outs), 0)} min · ${longOut} over 15 min` : ''}</span></div>
+    <div class="kpi ${bInc ? 'alert' : ''}"><span class="label">Brush errors</span><span class="v">${fNum(bInc)}</span><span class="s">brush container unavailable or brush tray error</span></div>
+  </div>
+  <section class="plate">
+    <div class="plate-head"><h2>Days between brush cleans</h2>
+      <div class="controls"><span class="label">Clean at least every</span><span class="seg" id="brush-t">${[3, 5, 7, 10, 14].map(n => `<button data-bt="${n}" aria-pressed="${n === T}">${n} days</button>`).join('')}</span></div></div>
+    <div class="legend"><span><i style="background:var(--s1)"></i>Days since the clean before</span><span><i class="dash" style="background:repeating-linear-gradient(90deg, var(--crit) 0 4px, transparent 4px 7px)"></i>Target: every ${T} days</span></div>
+    <div class="chart" id="ch-bgap"></div>
+    <p class="note">One bar per brush clean, at the moment the brush tray was taken out; its height is the number of days since the clean before it. A clean counts as late when more calendar days than the target have passed since the clean before (the same weekday a week later is 7 days). The target is only for this view; the database holds no cleaning schedule${open ? `. Since the last clean ${fNum(open.d, 1)} days have passed` : ''}.</p>
+  </section>
+  <div class="grid2">
+    <section class="plate"><div class="plate-head"><h2>Brush cleans per week</h2><span class="note">Red marks: brush errors.</span></div><div class="chart" id="ch-bweek"></div></section>
+    <section class="plate"><div class="plate-head"><h2>When the brush is cleaned</h2><span class="note">Cleans in the period, by the time the tray was taken out.</span></div>
+      <div class="grid2" style="gap:8px 24px">
+        <div class="tscroll"><table><thead><tr><th>Day</th><th>Cleans</th></tr></thead><tbody>${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => bar(d, wd[i], maxWd)).join('')}</tbody></table></div>
+        <div class="tscroll"><table><thead><tr><th>Hour</th><th>Cleans</th></tr></thead><tbody>${hrs.length ? hrs.map(([h, n]) => bar(`${pad(h)}:00`, n, maxHr)).join('') : '<tr><td colspan="2" class="empty">No cleans in this period.</td></tr>'}</tbody></table></div>
+      </div></section>
+  </div>
+  <section class="plate">
+    <div class="plate-head"><h2>Automatic cycles</h2><span class="note">Run by the dispenser itself, using the brush container.</span></div>
+    <div class="tscroll"><table><thead><tr><th>Cycle</th><th>Usual start</th><th class="num">Runs</th><th class="num">Per day</th><th class="num">Days with fewer runs</th><th class="num">Days without a run</th><th class="num">Typical duration</th><th class="num">Not finished</th><th class="num">Errors during it</th></tr></thead><tbody>
+      ${cycles.map(c => `<tr><td><b>${c.name}</b><br><span class="muted">${c.what}</span></td><td class="mono">${c.times || '–'}</td><td class="num">${fNum(c.n)}</td><td class="num">${c.n ? fNum(c.usual) : '–'}</td>
+        <td class="num">${c.days ? fNum(c.short) : '–'}${c.short ? ` <span class="muted">of ${fNum(c.days)}</span>` : ''}</td><td class="num">${c.days ? (c.none ? `<span class="flag warn">${fNum(c.none)}</span>` : '0') : '–'}</td>
+        <td class="num">${fDur(c.dur)}</td><td class="num">${c.unfinished ? `<span class="flag warn">${c.unfinished}</span>` : '0'}</td><td class="num">${c.errs ? `<span class="flag crit">${c.errs}</span>` : '0'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note"><b>Per day</b> = the usual number of runs a day. <b>Days with fewer runs</b> counts days in the period below that number (including days without a run); the last day of the data is left out because it isn't over yet. <b>Not finished</b> = a start without an end before the next start. <b>Errors during it</b> = machine errors logged "during CLEANING ROUND" or "during FLUSHING"; they are listed on the Errors tab.</p>
+  </section>
+  <section class="plate">
+    <div class="plate-head"><h2>Brush clean log</h2><span class="note">${fNum(log.length)} clean${log.length === 1 ? '' : 's'} in the period, newest first.</span></div>
+    <div class="tscroll">${log.length ? `<table><thead><tr><th>Tray out</th><th>Back in</th><th class="num">Out for (min:s)</th><th class="num">Days since the clean before</th><th>Notes</th></tr></thead><tbody>${log.map(c => {
+      const g = gapOf.get(c.t), ne = errsWhileOut(c), notes = [];
+      if (g && g.cd > T) notes.push(`<span class="flag warn">${g.cd - T} day${g.cd - T === 1 ? '' : 's'} late</span>`);
+      if (c.outMs != null && c.outMs > 15 * 60000) notes.push('<span class="flag warn">Out over 15 min</span>');
+      if (ne) notes.push(`<span class="flag crit">${ne} brush error${ne > 1 ? 's' : ''} while out</span>`);
+      if (c.n > 1) notes.push(`<span class="muted">taken out ${c.n} times</span>`);
+      if (c.in == null) notes.push('<span class="muted">no "tray inserted" logged</span>');
+      if (c.out == null) notes.push('<span class="muted">only "tray inserted" logged</span>');
+      const sameDay = c.out != null && c.in != null && Math.floor(c.out / DAY) === Math.floor(c.in / DAY);
+      return `<tr><td class="mono">${c.out != null ? fDateTime(c.out) : '–'}</td><td class="mono">${c.in == null ? '–' : sameDay ? hm(c.in) : fDateTime(c.in)}</td><td class="num">${c.outMs != null ? fOut(c.outMs) : '–'}</td><td class="num">${g ? fNum(g.d, 1) : '–'}</td><td>${notes.join(' ')}</td></tr>`;
+    }).join('')}</tbody></table>` : '<div class="empty">No brush cleans in this period.</div>'}</div>
+    <p class="note">A <b>brush clean</b> is the brush tray taken out and put back (events "Brush tray extracted" and "Brush tray inserted"). Taking it out again within 30 minutes of putting it back counts as the same clean. <b>Brush errors while out</b> = "brush container unavailable" or "brush tray error" logged while the tray was out, usually because someone tried to dispense. The database has no "clean the brush" reminder or brush level for these machines, so the time a reminder was shown can't be read; <b>days late</b> against the target above stands in for it. Times are the dispenser's own clock.</p>
+  </section>`;
+  v.querySelectorAll('#brush-t button').forEach(b => b.addEventListener('click', () => { S.brushT = +b.dataset.bt; store.set('ha.brushT', S.brushT); render(); }));
+  timeChart($('#ch-bgap', v), {
+    x0: S.from, x1: S.to, height: 240, zero: true, aria: 'Days between brush cleans', emptyText: 'Fewer than two brush cleans in this period',
+    bars: { name: 'Days since the clean before', color: css('--s1'), width: DAY, nearest: true, title: t => `Brush clean ${fDate(t)}`, pts: gp.map(g => [g.t, g.d]) },
+    series: gp.length ? [{ name: `Target: every ${T} days`, color: css('--crit'), dash: '5 4', width: 1.2, step: true, noTip: true, pts: [[S.from - DAY, T]] }] : [],
+    yFmt: x => fNum(x, x % 1 ? 1 : 0), vFmt: x => fNum(x, 1) + ' days'
+  });
+  timeChart($('#ch-bweek', v), {
+    x0: weekStart(S.from), x1: S.to, height: 220, zero: true, aria: 'Brush cleans per week', emptyText: 'No brush cleans in this period',
+    bars: { name: 'Brush cleans', color: css('--s1'), width: WEEK, pts: [...wk] },
+    markers: bErr.map(e => ({ t: e.t, shape: 'tri', color: css('--crit'), label: `<b>Brush error</b><br>${esc(e.group)}<br>${fDateTime(e.t)}` }))
+  });
+}
+
 /* ---------- plumbing ---------- */
 function toast(msg, ms = 2600) { document.querySelectorAll('.toast').forEach(x => x.remove()); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status'); document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
-const TABS = ['overview', 'autodrive', 'levels', 'errors', 'usage', 'climate'];
+const TABS = ['overview', 'autodrive', 'levels', 'errors', 'usage', 'climate', 'brush'];
 function setTab(t) { S.tab = t; store.set('ha.tab', t); try { history.replaceState(null, '', '#' + t); } catch {} render(); scrollTo({ top: 0 }); }
 function load(raw, announce) {
   // A shop name from SHOP_NAMES wins; otherwise the name typed earlier for this machine or share folder
