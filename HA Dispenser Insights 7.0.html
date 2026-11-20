@@ -299,8 +299,8 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
 <section class="welcome" id="welcome">
     <div class="home-bar" id="home-bar" hidden>
       <nav class="tabs" role="tablist" id="home-tabs" aria-label="All shops">
-        <button role="tab" data-home-tab="health">Machine condition</button>
         <button role="tab" data-home-tab="alerts">Pump &lt; 10%</button>
+        <button role="tab" data-home-tab="health">Machine condition</button>
         <button role="tab" data-home-tab="travel">Travel</button>
         <button role="tab" data-home-tab="wear">Piston wear</button>
         <button role="tab" data-home-tab="shelf">Colorant age</button>
@@ -2169,9 +2169,9 @@ function alertRows() {
 const shopCell = x => `<td class="al-shop"><b>${esc(x.shop || x.name)}</b><span class="muted mono">${[x.shop && x.shop !== x.name ? esc(x.name) : '', esc(x.r.description || '')].filter(Boolean).join(' · ')}</span></td>`;
 /* Tabs on the home page, one per all-shops section. A section without anything to show (e.g. before the first scan)
    has no tab; with only the shop list left, the tab bar is hidden. The badges count what needs attention. */
-const HOME_TABS = ['health', 'alerts', 'travel', 'wear', 'shelf', 'shops'];
+const HOME_TABS = ['alerts', 'health', 'travel', 'wear', 'shelf', 'shops'];
 const homeBadge = {};
-let homeTab = HOME_TABS.includes(store.get('ha.hometab')) ? store.get('ha.hometab') : 'health';
+let homeTab = HOME_TABS.includes(store.get('ha.hometab')) ? store.get('ha.hometab') : 'alerts';
 function renderHomeTabs() {
   const parts = tab => [...document.querySelectorAll(`#welcome [data-home="${tab}"]`)];
   // before anything is scanned (no access to the share yet) the shop list is where to start
