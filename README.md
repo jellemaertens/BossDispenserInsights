@@ -25,7 +25,7 @@ for your name). For the full version, start it with `Start HA Dispenser Insights
    - **W1W travel**: piston & tube, piston or pump travel per shop, with the Autodrive 2 self-test steps and the weekly curve (another colorant can be chosen; the tab takes its name).
    - **Wear prediction · all shops**: every channel with a logged piston replacement, plus every W1W channel without one, with when its piston counter reaches the replacement point (by default the median travel technicians noted at earlier replacements).
    - **Colorant older than 12 months · all shops**: canisters whose colorant is past an age limit (6–24 months), per colorant and per channel, with use per month and how long the canister takes to empty.
-   - **Machine overview · all shops**: one block per shop, the shops needing attention first: channels to check, pump < 10% errors, errors per 1,000 tints, tints since the last brush clean, oldest colorant, canisters at minimum, next piston replacement, a wrong dispenser clock and old backups.
+   - **Machine overview · all shops**: one block per shop, the shops needing attention first: channels to check, pump < 10% errors, errors per 1,000 tints, tints since the last brush clean, oldest colorant, canisters at minimum, next piston replacement and old backups.
    - **Shops**: the list of backups on the file share.
 3. **Open** on a shop, **Choose shop**, or **Open .mdf file** shows the full analysis of one machine: channel health, Autodrive 2, colorants (levels, colorant age and refills), errors, usage, climate and brush maintenance.
 

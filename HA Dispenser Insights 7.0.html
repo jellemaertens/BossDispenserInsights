@@ -349,8 +349,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         <b>Oldest colorant</b> = the oldest colorant age in a canister, with how many channels are past the age limit chosen on the Colorant age tab (no point: nearly every shop has a few slow colorants);
         <b>Canisters at minimum</b> (amber from 1, red from 3);
         <b>Next piston</b> = the soonest piston replacement on the Wear prediction tab (red past the replacement point, amber within 60 days);
-        <b>Clock</b> = events dated in the future, from a wrong dispenser clock (amber); they are left out of every figure, as are the few events dated 2000 that nearly every machine logs at start-up;
-        and <b>Backup</b> older than 3 days (red after 14).</p>
+        and <b>Backup</b> older than 3 days (red after 14). Events with an impossible date from a wrong dispenser clock (before 2010 or in the future) are left out of every figure.</p>
     </section>
     <section class="plate" id="alerts" data-home="alerts" hidden>
       <div class="plate-head"><h2>Pump filled less than 10% · all shops</h2>
@@ -2589,8 +2588,6 @@ function healthRows() {
     if (x.wear?.w.status === 'over') flag('crit', 'wear', `Piston ch ${x.wear.n} past replacement point`);
     else if (x.wear?.w.status === 'soon') flag('warn', 'wear', `Piston ch ${x.wear.n} due in ${fDays(x.wear.w.daysLeft)}`);
     if (!s) { flag('warn', 'read', `Data not read${r.sumErr ? ': ' + r.sumErr : ''}`); rows.push(x); continue; }
-    // a few events dated 2000 are on nearly every machine (logged before the clock is set at start-up); dates in the future are not
-    if (s.clock?.future) flag('warn', 'clock', `Clock: ${fNum(s.clock.future)} event${s.clock.future > 1 ? 's' : ''} dated ${s.clock.years.filter(y => y > 2010).join(', ')}`);
     x.low = Object.values(s.ch).filter(c => c[3]).length;
     x.soon = Object.values(s.ch).filter(c => !c[3] && c[4] != null && c[4] < 7).length;
     if (x.low) flag(x.low >= 3 ? 'crit' : 'warn', 'low', `${x.low} canister${x.low > 1 ? 's' : ''} at minimum`);
