@@ -20,12 +20,13 @@ for your name). For the full version, start it with `Start HA Dispenser Insights
 ## Using it
 
 1. Double-click `Start HA Dispenser Insights.cmd`. The browser opens the page.
-2. The home page scans every shop backup on the file share (each section has a CSV export):
+2. The home page (**All shops** in the header) scans every shop backup on the file share. It has a tab per view, each with a CSV export:
    - **Machine condition · all shops**: one line per shop, the shops needing attention first: channels to check, pump < 10% errors, errors per 1,000 tints, tints since the last brush clean, oldest colorant, canisters at minimum, next piston replacement, a wrong dispenser clock and old backups.
    - **Pump filled less than 10% · all shops**: new Autodrive 2 "pump filled less than 10%" errors per shop, with a shared *Contacted* checkbox.
    - **Travel · W1W · all shops**: piston & tube, piston or pump travel per shop, with the Autodrive 2 self-test steps and the weekly curve.
    - **Piston wear forecast · all shops**: every channel with a logged piston replacement, with when its piston counter reaches the replacement point (by default the median travel technicians noted at earlier replacements).
    - **Colorant older than 12 months · all shops**: canisters whose colorant is past an age limit (6–24 months), per colorant and per channel, with use per month and how long the canister takes to empty.
+   - **Shops**: the list of backups on the file share.
 3. **Open** on a shop, **Choose shop**, or **Open .mdf file** shows the full analysis of one machine: channel health, Autodrive 2, colorants (levels, colorant age and refills), errors, usage, climate and brush maintenance.
 
 The file share path is set at the top of `Start HA Dispenser Insights.ps1` (`$SharePath`). The contacted

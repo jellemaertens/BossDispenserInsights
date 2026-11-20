@@ -214,6 +214,11 @@ tr.sel td { background: var(--accent-wash); }
 
 /* Start screen */
 .welcome { display: flex; flex-direction: column; gap: 16px; padding-block: 8px 24px; }
+.home-bar { display: flex; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--line-2); }
+.home-bar .tabs { border-bottom: 0; flex: 1; min-width: 0; }
+.home-acts { display: flex; gap: 8px; padding-bottom: 6px; flex-shrink: 0; }
+.welcome [data-home].home-off { display: none; }
+@media (max-width: 640px) { .home-bar { flex-direction: column-reverse; align-items: stretch; border-bottom: 0; } .home-bar .tabs { border-bottom: 1px solid var(--line-2); } .home-acts { padding-bottom: 0; } }
 .welcome-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
 .welcome-steps > div { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
 .welcome-steps b { color: var(--head); }
@@ -279,9 +284,9 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         Open .mdf file
       </label>
       <input type="file" id="file-in" accept=".mdf,.json" hidden>
-      <button class="btn" id="alerts-btn" type="button" title="Shops where the pump filled less than 10%" hidden>
+      <button class="btn" id="alerts-btn" type="button" title="All shops: machine condition, pump alerts, travel, piston wear and colorant age; the number = shops with new pump alerts" hidden>
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1.2 1.5H2.8ZM6.5 14.5h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>
-        Shop alerts<span class="badge" id="alerts-badge" hidden></span>
+        All shops<span class="badge" id="alerts-badge" hidden></span>
       </button>
       <button class="btn" id="share-btn" type="button" title="Choose a shop from the backups on the file share" hidden>
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.5H14v6.5H2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
@@ -292,7 +297,21 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
 </header>
 <div class="page">
 <section class="welcome" id="welcome">
-    <section class="plate" id="health" hidden>
+    <div class="home-bar" id="home-bar" hidden>
+      <nav class="tabs" role="tablist" id="home-tabs" aria-label="All shops">
+        <button role="tab" data-home-tab="health">Machine condition</button>
+        <button role="tab" data-home-tab="alerts">Pump &lt; 10%</button>
+        <button role="tab" data-home-tab="travel">Travel</button>
+        <button role="tab" data-home-tab="wear">Piston wear</button>
+        <button role="tab" data-home-tab="shelf">Colorant age</button>
+        <button role="tab" data-home-tab="shops">Shops</button>
+      </nav>
+      <div class="home-acts">
+        <button class="btn" type="button" id="al-scan">Scan again</button>
+        <button class="btn" type="button" id="al-back" hidden></button>
+      </div>
+    </div>
+    <section class="plate" id="health" data-home="health" hidden>
       <div class="plate-head"><h2>Machine condition · all shops</h2>
         <div class="share-tools"><button class="btn" type="button" id="hl-csv" hidden>Export .csv</button></div></div>
       <div id="hl-body"></div>
@@ -301,55 +320,53 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         <b>Pump &lt; 10%</b> = Autodrive 2 "pump filled less than 10%" errors (amber from 3, red from 10);
         <b>Errors per 1,000 tints</b> = machine errors, counting errors in the same minute once, against tints (amber at twice the median of all shops, red at four times, with at least 5 errors);
         <b>Brush</b> = tints since the last brush clean (amber over 150, red over 300; the dispenser asks for a clean after 100) and the median days between cleans;
-        <b>Oldest colorant</b> = the oldest colorant age in a canister, with how many channels are past the age limit chosen under Colorant age below (no point: nearly every shop has a few slow colorants);
+        <b>Oldest colorant</b> = the oldest colorant age in a canister, with how many channels are past the age limit chosen on the Colorant age tab (no point: nearly every shop has a few slow colorants);
         <b>Canisters at minimum</b> (amber from 1, red from 3);
-        <b>Next piston</b> = the soonest piston replacement under Piston wear forecast (red past the replacement point, amber within 60 days);
+        <b>Next piston</b> = the soonest piston replacement on the Piston wear tab (red past the replacement point, amber within 60 days);
         <b>Clock</b> = events dated in the future, from a wrong dispenser clock (amber); they are left out of every figure, as are the few events dated 2000 that nearly every machine logs at start-up;
         and <b>Backup</b> older than 3 days (red after 14).</p>
     </section>
-    <section class="plate" id="alerts" hidden>
+    <section class="plate" id="alerts" data-home="alerts" hidden>
       <div class="plate-head"><h2>Pump filled less than 10% · all shops</h2>
         <div class="share-tools">
           <span class="seg" id="al-win" aria-label="Period"><button data-p="all">All data</button><button data-p="365">12 months</button><button data-p="90">90 days</button><button data-p="30">30 days</button><button data-p="7">7 days</button></span>
           <span class="dates"><input type="date" id="al-from" aria-label="Alerts from date"><span class="muted">to</span><input type="date" id="al-to" aria-label="Alerts to date"></span>
           <button class="btn" type="button" id="al-ack-all" hidden>Mark all as seen</button>
           <button class="btn" type="button" id="al-csv" hidden title="One line per error in the chosen period">Export .csv</button>
-          <button class="btn" type="button" id="al-scan">Scan again</button>
-          <button class="btn" type="button" id="al-back" hidden></button>
         </div></div>
       <div id="al-body"></div>
       <p class="note">Every shop backup on the file share is checked for the Autodrive 2 error <b>pump filled less than 10%</b>. <b>New</b> counts the errors logged since you last opened that shop or marked it as seen; this browser remembers that per shop. <b>Contacted</b> is shared with everyone: the ticks are kept in <span class="mono">HA Dispenser Insights contacts.json</span> on the file share, with who ticked them, and colleagues' ticks show up within a minute. A tick covers the errors logged up to that moment: a newer error clears it, so the shop shows as not contacted again. Opened without <span class="mono">Start HA Dispenser Insights.cmd</span>, the browser asks once for permission to save in the share folder and once for your name. Only backups that changed since the last scan are read again.</p>
     </section>
-    <section class="plate" id="travel" hidden>
+    <section class="plate" id="travel" data-home="travel" hidden>
       <div class="plate-head"><h2 id="tr-title"></h2>
         <div class="share-tools"><span class="seg" id="tr-by" aria-label="Show"><button data-by="tube">Piston &amp; tube</button><button data-by="piston">Piston</button><button data-by="pump">Pump</button></span>
           <label class="controls" for="tr-col"><span class="label">Colorant</span><select class="sel" id="tr-col"></select></label>
           <button class="btn" type="button" id="tr-csv" hidden>Export .csv</button></div></div>
       <div id="tr-body"></div>
-      <p class="note">Travel counters as stored in each shop's latest backup, so the 7/30/90 days choice above does not change them. The database does not state the unit; technicians note it in metres. <b>Pump travel</b> counts over the life of the channel. <b>Piston travel</b> is the piston counter, which restarts at every piston replacement, with or without the tube. <b>Piston &amp; tube travel</b> is the travel since the last "piston &amp; tube replaced" entry: the database keeps no tube counter, so after a piston-only replacement it adds the travel the technician noted at that swap (e.g. "HPP vervangen 422.27m"); without a noted figure it shows "≥", a lower limit. A piston-only entry on the same day as a piston &amp; tube entry counts as the same visit. <b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test of that channel, over all data in the backup, as on Channel health: <b>Normal</b> = median excluding the last 14 days, <b>Last 14 d</b> = average of the last 14 days with the change against normal, <b>Weekly steps</b> = weekly median. The export also lists the other counters and the last replacements. <b>Open</b> shows the shop's travel and steps for every channel.</p>
+      <p class="note">Travel counters as stored in each shop's latest backup, so the period chosen on the Pump &lt; 10% tab does not change them. The database does not state the unit; technicians note it in metres. <b>Pump travel</b> counts over the life of the channel. <b>Piston travel</b> is the piston counter, which restarts at every piston replacement, with or without the tube. <b>Piston &amp; tube travel</b> is the travel since the last "piston &amp; tube replaced" entry: the database keeps no tube counter, so after a piston-only replacement it adds the travel the technician noted at that swap (e.g. "HPP vervangen 422.27m"); without a noted figure it shows "≥", a lower limit. A piston-only entry on the same day as a piston &amp; tube entry counts as the same visit. <b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test of that channel, over all data in the backup, as on Channel health: <b>Normal</b> = median excluding the last 14 days, <b>Last 14 d</b> = average of the last 14 days with the change against normal, <b>Weekly steps</b> = weekly median. The export also lists the other counters and the last replacements. <b>Open</b> shows the shop's travel and steps for every channel.</p>
     </section>
-    <section class="plate" id="wear" hidden>
+    <section class="plate" id="wear" data-home="wear" hidden>
       <div class="plate-head"><h2>Piston wear forecast · all shops</h2>
         <div class="share-tools"><label class="controls" for="wr-lim"><span class="label">Replace at</span><select class="sel" id="wr-lim"></select></label>
           <button class="btn" type="button" id="wr-csv" hidden>Export .csv</button></div></div>
       <div id="wr-body"></div>
       <p class="note">Every channel with a logged piston or piston &amp; tube replacement, soonest due first. The piston counter restarts at each replacement. <b>Replace at</b> is the piston travel at which it should be replaced: by default the median of the travel technicians noted when they replaced one (e.g. "HPP vervangen 422.27m") on all scanned shops. <b>Per day</b> = piston travel per day since the last replacement; shortly after a replacement (less than 60 days) the travel noted at that replacement over the time since the one before is used, or else the pump travel per day since the log starts. <b>Due</b> = when the piston counter reaches the replacement point at that pace, counted from the last data in the backup. Channels that never had a logged replacement aren't listed: the counter of a part fitted before the log can't be tied to a replacement point.</p>
     </section>
-    <section class="plate" id="shelf" hidden>
+    <section class="plate" id="shelf" data-home="shelf" hidden>
       <div class="plate-head"><h2 id="sh-title">Colorant age · all shops</h2>
         <div class="share-tools"><span class="seg" id="sh-lim" aria-label="Age limit"><button data-m="6">6 months</button><button data-m="9">9 months</button><button data-m="12">12 months</button><button data-m="18">18 months</button><button data-m="24">24 months</button></span>
           <button class="btn" type="button" id="sh-csv" hidden>Export .csv</button></div></div>
       <div id="sh-body"></div>
       <p class="note">Colorant age in each canister at the end of the shop's latest backup, worked out from the refills as on the Colorants tab: the colorant ages a day per day and every refill mixes fresh colorant in (age after = age before × litres before ÷ litres after). The age of what was in the canister when the log starts is unknown; while that could still be more than 5% of the canister the age shows as "≥", a minimum. <b>Use per month</b> = average over the last 90 days of data. <b>Months to use it up</b> = litres in the canister ÷ use per month: when that is long, the colorant keeps getting older, and a smaller refill or dropping the colorant at that shop could be considered. Click a colorant to list only its channels.</p>
     </section>
-    <section class="plate" id="share-pick" hidden>
-      <div class="plate-head"><h2>Or choose a shop from the file share</h2>
+    <section class="plate" id="share-pick" data-home="shops" hidden>
+      <div class="plate-head"><h2>Choose a shop from the file share</h2>
         <div class="share-tools"><input type="search" data-share-q placeholder="Filter shop or PC" aria-label="Filter shops"><button class="btn" type="button" data-share-refresh>Refresh</button></div></div>
       <div class="tscroll" data-share-list></div>
       <p class="note" data-share-note></p>
     </section>
-    <div class="welcome-steps">
-      <div><span class="stepnr">1</span><div><b>Choose a shop</b><p class="note">Pick a shop from the file share above, or open a copy of <span class="mono">DeviceDriverDatabase.mdf</span>. To open the live file on a dispenser PC, start with <span class="mono">Start HA Dispenser Insights.cmd</span>; it closes <span class="mono">it_pos_app.exe</span> first. The <span class="mono">_Log.ldf</span> file is not needed.</p></div></div>
+    <div class="welcome-steps" data-home="shops">
+      <div><span class="stepnr">1</span><div><b>Choose a shop</b><p class="note">Pick a shop from the file share, or open a copy of <span class="mono">DeviceDriverDatabase.mdf</span>. To open the live file on a dispenser PC, start with <span class="mono">Start HA Dispenser Insights.cmd</span>; it closes <span class="mono">it_pos_app.exe</span> first. The <span class="mono">_Log.ldf</span> file is not needed.</p></div></div>
       <div><span class="stepnr">2</span><div><b>Open it here</b><p class="note">Reading takes a few seconds. No SQL Server or LocalDB is needed.</p></div></div>
       <div><span class="stepnr">3</span><div><b>Check the machine</b><p class="note">Channel condition, Autodrive 2 efficiency, colorant levels and errors, per period.</p></div></div>
     </div>
@@ -2150,10 +2167,30 @@ function alertRows() {
 }
 // Shop name, with the folder name below it only when it differs (folders may already be named after the shop)
 const shopCell = x => `<td class="al-shop"><b>${esc(x.shop || x.name)}</b><span class="muted mono">${[x.shop && x.shop !== x.name ? esc(x.name) : '', esc(x.r.description || '')].filter(Boolean).join(' · ')}</span></td>`;
+/* Tabs on the home page, one per all-shops section. A section without anything to show (e.g. before the first scan)
+   has no tab; with only the shop list left, the tab bar is hidden. The badges count what needs attention. */
+const HOME_TABS = ['health', 'alerts', 'travel', 'wear', 'shelf', 'shops'];
+const homeBadge = {};
+let homeTab = HOME_TABS.includes(store.get('ha.hometab')) ? store.get('ha.hometab') : 'health';
+function renderHomeTabs() {
+  const parts = tab => [...document.querySelectorAll(`#welcome [data-home="${tab}"]`)];
+  // before anything is scanned (no access to the share yet) the shop list is where to start
+  const avail = HOME_TABS.filter(t => t === 'shops' || ((alerts.res.size || alerts.run) && parts(t).some(p => !p.hidden)));
+  const cur = avail.includes(homeTab) ? homeTab : avail[0];
+  $('#home-bar').hidden = avail.length < 2;
+  for (const b of $('#home-tabs').children) {
+    const t = b.dataset.homeTab, base = b.dataset.label || (b.dataset.label = b.textContent), n = homeBadge[t];
+    b.hidden = !avail.includes(t);
+    b.setAttribute('aria-selected', t === cur);
+    b.innerHTML = esc(base) + (n?.n ? `<span class="count${n.crit ? ' crit' : ''}">${n.n}</span>` : '');
+  }
+  document.querySelectorAll('#welcome [data-home]').forEach(p => p.classList.toggle('home-off', p.dataset.home !== cur));
+}
+function setHomeTab(t) { homeTab = t; store.set('ha.hometab', t); renderHomeTabs(); }
 function renderAlerts() {
   const box = $('#alerts');
   box.hidden = SHARE_MODE === 'none';
-  if (box.hidden) return;
+  if (box.hidden) { renderHomeTabs(); return; }
   const rows = alertRows(), hit = rows.filter(r => r.n).sort((a, b) => (!a.nNew - !b.nNew) || b.nNew - a.nNew || b.last - a.last);
   const quiet = rows.filter(r => !r.n).sort((a, b) => (a.shop || a.name).localeCompare(b.shop || b.name));
   const nNew = hit.filter(r => r.nNew).length, win = alertsPeriodText();
@@ -2171,7 +2208,7 @@ function renderAlerts() {
   if (!rows.length) {
     html += alerts.run ? ''
       : share.error ? `<div class="empty">${esc(share.error)}</div>`
-      : share.need ? '<div class="empty">Give this browser access to the file share under <b>Or choose a shop from the file share</b> below, then the shops are scanned.</div>'
+      : share.need ? '<div class="empty">Give this browser access to the file share on the <b>Shops</b> tab, then the shops are scanned.</div>'
       : share.items && !share.items.length ? '<div class="empty">No DeviceDriverDatabase.mdf found on the share.</div>'
       : '<div class="empty">Loading the list of shops…</div>';
   } else {
@@ -2203,7 +2240,7 @@ function renderAlerts() {
   if (contacts.err) html += `<p class="al-quiet"><span class="flag warn">Contacted ticks not shared</span> ${esc(contacts.err)}</p>`;
   const pendingTicks = localTicks().length;
   if (pendingTicks && contactsShared() && SHARE_MODE === 'local') html += `<p class="al-quiet"><span class="flag warn">${pendingTicks} contacted tick${pendingTicks > 1 ? 's' : ''} only in this browser</span> Colleagues don't see ${pendingTicks > 1 ? 'them' : 'it'} yet. <button class="btn" type="button" data-share-ticks>Share them</button></p>`;
-  else if (pendingTicks && !contactsShared() && rows.length) html += `<p class="al-quiet"><span class="flag warn">Contacted ticks only in this browser</span> Choose the share folder below to share them with colleagues.</p>`;
+  else if (pendingTicks && !contactsShared() && rows.length) html += `<p class="al-quiet"><span class="flag warn">Contacted ticks only in this browser</span> Choose the share folder on the Shops tab to share them with colleagues.</p>`;
   if (alerts.err.size) html += `<p class="al-quiet">Couldn't scan: ${[...alerts.err].map(([n, m]) => `<b>${esc(shopOf(n) || n)}</b> (${esc(m)})`).join('; ')}.</p>`;
   const body = $('#al-body');
   body.innerHTML = html;
@@ -2211,10 +2248,12 @@ function renderAlerts() {
   body.querySelectorAll('[data-al-ack]').forEach(b => b.addEventListener('click', () => { const r = alerts.res.get(b.dataset.alAck); if (r?.events.length) ackShop(b.dataset.alAck, r.events[r.events.length - 1][0]); renderAlerts(); }));
   body.querySelectorAll('[data-al-contact]').forEach(b => b.addEventListener('change', () => setContact(b.dataset.alContact, b.checked)));
   body.querySelector('[data-share-ticks]')?.addEventListener('click', shareLocalTicks);
+  homeBadge.alerts = { n: nNew, crit: true };
   renderTravel();
   renderHealth();
   renderWear();
   renderShelf();
+  renderHomeTabs();
 }
 /* Travel of one colorant (W1W unless another is chosen) on every scanned shop: piston & tube travel
    (since the last piston & tube replacement), piston travel (piston counter) or pump travel (lifetime) */
@@ -2336,6 +2375,7 @@ function renderWear() {
   const body = $('#wr-body');
   if (!rows.length) { body.innerHTML = '<div class="empty">No scanned shop has a logged piston replacement.</div>'; return; }
   const over = rows.filter(x => x.w.status === 'over'), soon = rows.filter(x => x.w.status === 'soon');
+  homeBadge.wear = { n: over.length + soon.length, crit: over.length > 0 };
   const max = Math.max(L.v * 1.2, ...rows.map(x => x.w.piston));
   const f = (label, v, sub = '') => `<div class="fact"><span class="label">${label}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
   body.innerHTML = `<div class="facts">
@@ -2451,7 +2491,7 @@ function healthRows() {
     if (x.rate != null && medRate && s.errInc30 >= 5 && x.rate >= 2 * medRate) flag(x.rate >= 4 * medRate ? 'crit' : 'warn', 'errs', `${fNum(x.rate, 1)} errors per 1,000 tints`);
     const b = s.brush;
     if (b?.tintsSince > 150) flag(b.tintsSince > 300 ? 'crit' : 'warn', 'brush', `${fNum(b.tintsSince)} tints since brush clean`);
-    // old colorant is shown but gives no point: nearly every shop has a few slow colorants, see Colorant age below
+    // old colorant is shown but gives no point: nearly every shop has a few slow colorants, see the Colorant age tab
     x.old = (s.ages || []).filter(a => a[2] > lim).sort((a, b) => b[2] - a[2]);
     x.oldest = (s.ages || []).reduce((m, a) => !m || a[2] > m[2] ? a : m, null);
     if (s.low.length) flag(s.low.length >= 3 ? 'crit' : 'warn', 'low', `${s.low.length} canister${s.low.length > 1 ? 's' : ''} at minimum`);
@@ -2467,6 +2507,7 @@ function renderHealth() {
   if (box.hidden) return;
   const { rows, medRate } = healthRows(), lim = shelfMonths();
   const crit = rows.filter(x => x.flags.some(f => f[0] === 'crit')), warn = rows.filter(x => !crit.includes(x) && x.flags.length), ok = rows.filter(x => !x.flags.length);
+  homeBadge.health = { n: crit.length, crit: true };
   $('#hl-csv').hidden = !rows.length;
   const cell = (x, key, html) => `<td class="num">${x.c[key] ? `<span class="flag ${x.c[key]}">${html}</span>` : html}</td>`;
   const sub = t => `<div class="muted" style="font-size:11px">${t}</div>`;
@@ -2586,6 +2627,12 @@ document.querySelectorAll('[data-share-q]').forEach(i => { i.hidden = SHARE_MODE
 $('#alerts-btn').hidden = SHARE_MODE === 'none';
 $('#alerts-btn').addEventListener('click', () => showHome(true));
 $('#al-back').addEventListener('click', () => showHome(false));
+$('#home-tabs').addEventListener('click', e => { const b = e.target.closest('button[data-home-tab]'); if (b) setHomeTab(b.dataset.homeTab); });
+$('#home-tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const bs = [...$('#home-tabs').children].filter(b => !b.hidden), i = bs.findIndex(b => b.getAttribute('aria-selected') === 'true');
+  const n = bs[(i + (e.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length]; setHomeTab(n.dataset.homeTab); n.focus();
+});
 $('#al-scan').addEventListener('click', () => fetchShare(true));
 $('#al-ack-all').addEventListener('click', () => { for (const r of alertRows()) if (r.nNew) ackShop(r.name, r.r.events[r.r.events.length - 1][0]); renderAlerts(); });
 $('#tr-col').addEventListener('change', e => { store.set('ha.trcol', e.target.value); renderTravel(); });
