@@ -284,7 +284,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         Open .mdf file
       </label>
       <input type="file" id="file-in" accept=".mdf,.json" hidden>
-      <button class="btn" id="alerts-btn" type="button" title="All shops: machine condition, pump alerts, travel, piston wear and colorant age; the number = shops with new pump alerts" hidden>
+      <button class="btn" id="alerts-btn" type="button" title="All shops: machine condition, pump alerts, travel, wear prediction and colorant age; the number = shops with new pump alerts" hidden>
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1.2 1.5H2.8ZM6.5 14.5h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>
         All shops<span class="badge" id="alerts-badge" hidden></span>
       </button>
@@ -309,7 +309,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         <button role="tab" data-home-tab="alerts">Pump &lt; 10%</button>
         <button role="tab" data-home-tab="health">Machine condition</button>
         <button role="tab" data-home-tab="travel">Travel</button>
-        <button role="tab" data-home-tab="wear">Piston wear</button>
+        <button role="tab" data-home-tab="wear">Wear prediction</button>
         <button role="tab" data-home-tab="shelf">Colorant age</button>
         <button role="tab" data-home-tab="shops">Shops</button>
       </nav>
@@ -329,7 +329,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         <b>Brush</b> = tints since the last brush clean at the end of the period (amber over 150, red over 300; the dispenser asks for a clean after 100) and the median days between the cleans in the period;
         <b>Oldest colorant</b> = the oldest colorant age in a canister, with how many channels are past the age limit chosen on the Colorant age tab (no point: nearly every shop has a few slow colorants);
         <b>Canisters at minimum</b> (amber from 1, red from 3);
-        <b>Next piston</b> = the soonest piston replacement on the Piston wear tab (red past the replacement point, amber within 60 days);
+        <b>Next piston</b> = the soonest piston replacement on the Wear prediction tab (red past the replacement point, amber within 60 days);
         <b>Clock</b> = events dated in the future, from a wrong dispenser clock (amber); they are left out of every figure, as are the few events dated 2000 that nearly every machine logs at start-up;
         and <b>Backup</b> older than 3 days (red after 14).</p>
     </section>
@@ -351,7 +351,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
       <p class="note">Travel counters as stored in each shop's latest backup, so the period does not change them; it does set the self-test steps. The database does not state the unit; technicians note it in metres. <b>Pump travel</b> counts over the life of the channel. <b>Piston travel</b> is the piston counter, which restarts at every piston replacement, with or without the tube. <b>Piston &amp; tube travel</b> is the travel since the last "piston &amp; tube replaced" entry: the database keeps no tube counter, so after a piston-only replacement it adds the travel the technician noted at that swap (e.g. "HPP vervangen 422.27m"); without a noted figure it shows "≥", a lower limit. A piston-only entry on the same day as a piston &amp; tube entry counts as the same visit. <b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test of that channel, in the chosen period, as on Channel health: <b>Normal</b> = median excluding the last 14 days, <b>Last 14 d</b> = average of the last 14 days with the change against normal, <b>Weekly steps</b> = weekly median. The export also lists the other counters and the last replacements. <b>Open</b> shows the shop's travel and steps for every channel.</p>
     </section>
     <section class="plate" id="wear" data-home="wear" hidden>
-      <div class="plate-head"><h2>Piston wear forecast · all shops</h2>
+      <div class="plate-head"><h2>Wear prediction · all shops</h2>
         <div class="share-tools"><label class="controls" for="wr-lim"><span class="label">Replace at</span><select class="sel" id="wr-lim"></select></label>
           <button class="btn" type="button" id="wr-csv" hidden>Export .csv</button></div></div>
       <div id="wr-body"></div>
