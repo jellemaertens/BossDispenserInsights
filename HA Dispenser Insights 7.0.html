@@ -307,8 +307,8 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
     <div class="home-bar" id="home-bar" hidden>
       <nav class="tabs" role="tablist" id="home-tabs" aria-label="All shops">
         <button role="tab" data-home-tab="alerts">Pump &lt; 10%</button>
+        <button role="tab" data-home-tab="travel">W1W travel</button>
         <button role="tab" data-home-tab="health">Machine condition</button>
-        <button role="tab" data-home-tab="travel">Travel</button>
         <button role="tab" data-home-tab="wear">Wear prediction</button>
         <button role="tab" data-home-tab="shelf">Colorant age</button>
         <button role="tab" data-home-tab="shops">Shops</button>
@@ -2208,7 +2208,7 @@ function alertRows() {
 const shopCell = x => `<td class="al-shop"><b>${esc(x.shop || x.name)}</b><span class="muted mono">${[x.shop && x.shop !== x.name ? esc(x.name) : '', esc(x.r.description || '')].filter(Boolean).join(' · ')}</span></td>`;
 /* Tabs on the home page, one per all-shops section. A section without anything to show (e.g. before the first scan)
    has no tab; with only the shop list left, the tab bar is hidden. The badges count what needs attention. */
-const HOME_TABS = ['alerts', 'health', 'travel', 'wear', 'shelf', 'shops'];
+const HOME_TABS = ['alerts', 'travel', 'health', 'wear', 'shelf', 'shops'];
 const homeBadge = {};
 let homeTab = HOME_TABS.includes(store.get('ha.hometab')) ? store.get('ha.hometab') : 'alerts';
 function renderHomeTabs() {
@@ -2221,7 +2221,8 @@ function renderHomeTabs() {
   $('#home-filters').hidden = $('#home-bar').hidden || cur === 'shops';
   $('#al-period-text').textContent = alertsPeriodText().replace(/^./, c => c.toUpperCase());
   for (const b of $('#home-tabs').children) {
-    const t = b.dataset.homeTab, base = b.dataset.label || (b.dataset.label = b.textContent), n = homeBadge[t];
+    // the travel tab is named after the colorant chosen on it (W1W unless another is chosen)
+    const t = b.dataset.homeTab, base = t === 'travel' ? `${travelCol()} travel` : b.dataset.label || (b.dataset.label = b.textContent), n = homeBadge[t];
     b.hidden = !avail.includes(t);
     b.setAttribute('aria-selected', t === cur);
     b.innerHTML = esc(base) + (n?.n ? `<span class="count${n.crit ? ' crit' : ''}">${n.n}</span>` : '');
@@ -2723,7 +2724,7 @@ $('#home-tabs').addEventListener('keydown', e => {
 });
 $('#al-scan').addEventListener('click', () => fetchShare(true));
 $('#al-ack-all').addEventListener('click', () => { for (const r of alertRows()) if (r.nNew) ackShop(r.name, r.r.events[r.r.events.length - 1][0]); renderAlerts(); });
-$('#tr-col').addEventListener('change', e => { store.set('ha.trcol', e.target.value); renderTravel(); });
+$('#tr-col').addEventListener('change', e => { store.set('ha.trcol', e.target.value); renderTravel(); renderHomeTabs(); });
 $('#al-csv').addEventListener('click', exportAlerts);
 $('#tr-csv').addEventListener('click', exportTravel);
 $('#hl-csv').addEventListener('click', exportHealth);

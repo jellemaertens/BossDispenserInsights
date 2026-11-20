@@ -22,8 +22,8 @@ for your name). For the full version, start it with `Start HA Dispenser Insights
 1. Double-click `Start HA Dispenser Insights.cmd`. The browser opens the page.
 2. The home page (**All shops** in the header) scans every shop backup on the file share. It has a tab per view, each with a CSV export, and one period filter (all data, 12 months, 90/30/7 days or your own dates) for all of them:
    - **Pump filled less than 10% · all shops**: new Autodrive 2 "pump filled less than 10%" errors per shop, with a shared *Contacted* checkbox.
+   - **W1W travel**: piston & tube, piston or pump travel per shop, with the Autodrive 2 self-test steps and the weekly curve (another colorant can be chosen; the tab takes its name).
    - **Machine condition · all shops**: one line per shop, the shops needing attention first: channels to check, pump < 10% errors, errors per 1,000 tints, tints since the last brush clean, oldest colorant, canisters at minimum, next piston replacement, a wrong dispenser clock and old backups.
-   - **Travel · W1W · all shops**: piston & tube, piston or pump travel per shop, with the Autodrive 2 self-test steps and the weekly curve.
    - **Wear prediction · all shops**: every channel with a logged piston replacement, plus every W1W channel without one, with when its piston counter reaches the replacement point (by default the median travel technicians noted at earlier replacements).
    - **Colorant older than 12 months · all shops**: canisters whose colorant is past an age limit (6–24 months), per colorant and per channel, with use per month and how long the canister takes to empty.
    - **Shops**: the list of backups on the file share.
