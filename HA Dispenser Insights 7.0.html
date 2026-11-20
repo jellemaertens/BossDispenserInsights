@@ -373,7 +373,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         <div class="share-tools"><label class="controls" for="wr-lim"><span class="label">Replace at</span><select class="sel" id="wr-lim"></select></label>
           <button class="btn" type="button" id="wr-csv" hidden>Export .csv</button></div></div>
       <div id="wr-body"></div>
-      <p class="note">Every channel with a logged piston or piston &amp; tube replacement, plus every channel of the colorant(s) the replacement point comes from (W1W today), soonest due first. The piston counter restarts at each replacement. <b>Replace at</b> is the piston travel at which it should be replaced: by default the median of the travel technicians noted when they replaced one (e.g. "HPP vervangen 422.27m") on all scanned shops. <b>Per day</b> = piston travel per day since the last replacement; shortly after a replacement (less than 60 days) the travel noted at that replacement over the time since the one before is used, or else the pump travel per day since the log starts. <b>Due</b> = when the piston counter reaches the replacement point at that pace, counted from the last data in the backup. For those channels without a logged replacement ("none in the log") the pace is the pump travel per day since the log starts. When the piston counter equals the pump counter the piston was never replaced; if the machine ran before its log starts, part of that travel is older and the real pace is lower, so the due date is then early. The replacement point is learned from HP pistons; it may not fit a standard piston. Channels of other colorants without a logged replacement aren't listed: they mostly have standard pumps that run far past the replacement point without trouble. The forecast uses the counters at the time of the backup, as the database keeps no travel history; the period counts the replacements logged in it and marks them <span class="flag ok">in period</span>.</p>
+      <p class="note">Every channel with a logged piston or piston &amp; tube replacement, plus every channel of the colorant(s) the replacement point comes from (W1W today), soonest due first. The piston counter restarts at each replacement. <b>Replace at</b> is the piston travel at which it should be replaced: by default the median of the travel technicians noted when they replaced one (e.g. "HPP vervangen 422.27m") on all scanned shops. <b>Per day</b> = piston travel per day since the last replacement. Less than 60 days after a replacement, the travel noted at that replacement over the time since the one before is used when there is one; otherwise the travel since the replacement, from 14 days on. Before that the due date shows <b>too soon to tell</b> and the channel goes to the bottom of the list. <b>Due</b> = when the piston counter reaches the replacement point at that pace, counted from the last data in the backup. For channels without a logged replacement ("none in the log") whose piston was never replaced (piston counter = pump counter), the pace is the pump travel per day since the log starts; if the machine ran before its log starts, part of that travel is older and the real pace is lower, so the due date is then early. The lifetime pump counter is not used for a piston that was replaced: it also counts the time before the log and would give a pace far too high. The replacement point is learned from HP pistons; it may not fit a standard piston. Channels of other colorants without a logged replacement aren't listed: they mostly have standard pumps that run far past the replacement point without trouble. The forecast uses the counters at the time of the backup, as the database keeps no travel history; the period counts the replacements logged in it and marks them <span class="flag ok">in period</span>.</p>
     </section>
     <section class="plate" id="shelf" data-home="shelf" hidden>
       <div class="plate-head"><h2 id="sh-title">Colorant age · all shops</h2>
@@ -1197,24 +1197,35 @@ const fAge = x => x == null ? '–' : (x.min ? '≥ ' : '') + fNum(x.age, x.age 
 
 /* Piston wear forecast of one channel. The piston counter restarts at every replacement; technicians note the travel at
    which they replaced it ("HPP vervangen 422.27m"), and the median of those notes over all scanned shops is the default
-   replacement point. Travel per day: piston counter / days since the last replacement (60+ days ago), else the travel
-   noted at that replacement / days since the one before, else pump travel / days since the log starts.
+   replacement point. Travel per day:
+   - with a logged replacement: piston counter / days since it (60+ days ago); shortly after one, the travel noted at it /
+     days since the one before; else, from 14 days on, piston counter / days since it; before that it is too soon to tell.
+   - without one: only when the piston was never replaced (piston counter = pump counter), pump travel / days since the
+     log starts. The lifetime pump counter is never used for a piston that was replaced: it covers the time before the
+     log too, which made a pace far too high (e.g. a piston replaced 2 days before the backup on a machine whose log
+     starts long after it was installed).
    repl = [[time, note], ...] oldest first; start/end = first and last data of the backup (dispenser clock).
-   Without a logged replacement only with anyway = true (a colorant the replacement point comes from); never = the
-   piston counter equals the pump counter, so the piston was never replaced. */
+   Without a logged replacement only with anyway = true (a colorant the replacement point comes from). */
+const WEAR_MIN_DAYS = 14;
 function wearOf({ piston, pump, repl, start, end, anyway }, limit) {
   if (piston == null || (!repl.length && !anyway)) return null;
   const last = repl[repl.length - 1] || null, days = last ? (end - last[0]) / DAY : null;
-  let rate = null, how = '';
+  const never = !last && pump != null && Math.abs(pump - piston) <= 1;
+  let rate = null, how = '', tooSoon = false;
   const prev = last && repl.filter(r => r[0] < last[0] - DAY).pop(), noted = last && notedTravel(last[1], pump);
-  if (last && days >= 60 && piston > 0) { rate = piston / days; how = 'since the last replacement'; }
-  else if (prev && noted) { rate = noted / ((last[0] - prev[0]) / DAY); how = 'between the last two replacements'; }
-  else if (pump > 0 && start != null && end - start > 60 * DAY) { rate = pump / ((end - start) / DAY); how = 'pump travel since the log starts'; }
+  if (last) {
+    if (days >= 60 && piston > 0) { rate = piston / days; how = 'since the last replacement'; }
+    else if (prev && noted) { rate = noted / ((last[0] - prev[0]) / DAY); how = 'between the last two replacements'; }
+    else if (days >= WEAR_MIN_DAYS && piston > 0) { rate = piston / days; how = 'since the last replacement'; }
+    else { tooSoon = true; how = `replaced ${fNum(Math.max(0, days))} day${Math.round(days) === 1 ? '' : 's'} before the backup`; }
+  } else if (never && pump > 0 && start != null && end - start > 60 * DAY) { rate = pump / ((end - start) / DAY); how = 'pump travel since the log starts'; }
+  else how = never ? 'log too short' : 'replaced before the log, so its own travel per day is unknown';
   const left = limit - piston, daysLeft = rate > 0 ? Math.max(0, left / rate) : null;
-  return { piston, last, days, rate, how, left, daysLeft, due: daysLeft != null ? end + daysLeft * DAY : null,
-    never: !last && pump != null && Math.abs(pump - piston) <= 1,
+  return { piston, last, days, rate, how, left, daysLeft, due: daysLeft != null ? end + daysLeft * DAY : null, never, tooSoon,
     status: left <= 0 ? 'over' : daysLeft != null && daysLeft < 60 ? 'soon' : 'ok' };
 }
+// "Due" when there is no pace: too soon after a replacement, or unknown
+const noPaceText = w => w.tooSoon ? 'too soon to tell' : 'unknown';
 // Text for a channel without a logged replacement
 const noReplText = w => w.never ? 'never replaced: piston counter = pump counter' : 'replaced before the log';
 // Replacement point: the chosen travel, or the median travel noted at replacements on the scanned shops (400 without notes)
@@ -1331,7 +1342,7 @@ function pumpOverview(stats) {
     const w = wear.get(n); if (!w) return '<span class="muted">–</span>';
     const sub = `<div class="muted" style="font-size:11px">${w.rate ? `${fNum(w.rate, 2)} per day · ` : ''}${fNum(Math.max(0, w.left))} to go${w.last ? '' : ` · ${w.never ? 'never replaced' : 'replaced before the log'}`}</div>`;
     if (w.status === 'over') return `<span class="flag crit">${fNum(-w.left)} past ${fNum(L.v)}</span>${w.last ? '' : `<div class="muted" style="font-size:11px">${w.never ? 'never replaced' : 'replaced before the log'}</div>`}`;
-    return `${w.daysLeft == null ? '–' : `<span class="${w.status === 'soon' ? 'flag warn' : ''}">${fDays(w.daysLeft)}</span> <span class="muted mono">~${fDate(w.due)}</span>`}${sub}`;
+    return `${w.daysLeft == null ? `<span class="muted" title="${esc(w.how)}">${noPaceText(w)}</span>` : `<span class="${w.status === 'soon' ? 'flag warn' : ''}">${fDays(w.daysLeft)}</span> <span class="muted mono">~${fDate(w.due)}</span>`}${sub}`;
   };
   return `<section class="plate">
     <div class="plate-head"><h2>Pump travel per channel</h2>
@@ -1355,7 +1366,7 @@ function pumpOverview(stats) {
         <tr><td></td><td><b>Total</b></td><td><div class="inbar" style="min-width:220px"><div style="flex:1"></div><span class="val"><b>${fNum(sum)}</b></span></div></td><td class="num"><b>100%</b></td><td class="num"><b>${fNum(rows.reduce((a, s) => a + (s.piston ?? 0), 0))}</b></td>${wear.size ? '<td></td>' : ''}<td class="num"><b>${fNum(rows.reduce((a, s) => a + (totalL.get(s.n) || 0), 0), 1)} L</b></td></tr>
       </tbody>
     </table></div>
-    <p class="note">Pump and piston travel are the distance counters the dispenser keeps per channel, as stored in the database when the file was read. They are lifetime totals, so the period filter does not change them; the database does not state the unit. A piston counter lower than the pump counter means the piston was replaced and its counter restarted. ${wear.size ? `<b>Piston replacement due</b> is shown for channels with a logged piston (&amp; tube) replacement and for ${esc(colsText(L))} channels: when the piston counter reaches ${fNum(L.v)} (${wearLimitText(L)}) at its travel per day since the last replacement (or, shortly after one, the travel noted at that replacement over the time since the one before, or else the pump travel per day since the log starts). ` : ''}Click a channel to open its Autodrive 2 history.</p>
+    <p class="note">Pump and piston travel are the distance counters the dispenser keeps per channel, as stored in the database when the file was read. They are lifetime totals, so the period filter does not change them; the database does not state the unit. A piston counter lower than the pump counter means the piston was replaced and its counter restarted. ${wear.size ? `<b>Piston replacement due</b> is shown for channels with a logged piston (&amp; tube) replacement and for ${esc(colsText(L))} channels: when the piston counter reaches ${fNum(L.v)} (${wearLimitText(L)}) at its travel per day since the last replacement (or, less than 60 days after one, the travel noted at that replacement over the time since the one before; "too soon to tell" in the first 14 days without that). A piston never replaced uses the pump travel per day since the log starts. ` : ''}Click a channel to open its Autodrive 2 history.</p>
   </section>`;
 }
 
@@ -2422,11 +2433,13 @@ function wearRows() {
     const w = wearOf({ piston: t[1], pump: t[0], repl: ev.map(e => [e[0], e[2]]), start: r.sum?.start ?? null, end: endOf(r), anyway: L.cols.has(String(col).trim().toUpperCase()) }, L.v);
     if (w) rows.push({ name, shop: shopOf(name), r, n: +n, col, w, lastE: ev[ev.length - 1] || null });
   }
-  rows.sort((a, b) => (a.w.daysLeft ?? 1e9) - (b.w.daysLeft ?? 1e9) || a.w.left - b.w.left || (a.shop || a.name).localeCompare(b.shop || b.name));
+  // past the replacement point first, then soonest due; channels without a pace (too soon to tell) last
+  const key = w => w.status === 'over' ? -1 : w.daysLeft ?? 1e9;
+  rows.sort((a, b) => key(a.w) - key(b.w) || a.w.left - b.w.left || (a.shop || a.name).localeCompare(b.shop || b.name));
   return { rows, L };
 }
 const wearDue = (w, L) => w.status === 'over' ? `<span class="flag crit">${fNum(-w.left)} past ${fNum(L.v)}</span>`
-  : w.daysLeft == null ? '<span class="muted">–</span>' : `<span class="${w.status === 'soon' ? 'flag warn' : ''}">${fDays(w.daysLeft)}</span> <span class="muted mono">~${fDate(w.due)}</span>`;
+  : w.daysLeft == null ? `<span class="muted" title="${esc(w.how)}">${noPaceText(w)}</span>` : `<span class="${w.status === 'soon' ? 'flag warn' : ''}">${fDays(w.daysLeft)}</span> <span class="muted mono">~${fDate(w.due)}</span>`;
 function renderWear() {
   const box = $('#wear');
   box.hidden = SHARE_MODE === 'none' || !alerts.res.size;
@@ -2626,7 +2639,7 @@ function renderHealth() {
   html += `<div class="hrows">${rows.map(x => {
     const s = x.s, p = x.p, b = p?.brush, w = x.wear, bAge = (Date.now() - x.r.ts) / DAY;
     const brushSub = b ? `${b.since != null ? (b.since < 1 ? `last clean ${alerts.to >= s.end ? 'today' : 'on the last day'}` : `last clean ${fDays(b.since)} ${alerts.to >= s.end ? 'ago' : 'before the end'}`) : 'no clean logged'}${b.medGap != null ? ` · every ${fNum(b.medGap, 1)} days` : ''}` : '';
-    const wearV = !w ? '–' : w.w.status === 'over' ? `${fNum(-w.w.left)} past` : w.w.daysLeft == null ? '–' : fDays(w.w.daysLeft);
+    const wearV = !w ? '–' : w.w.status === 'over' ? `${fNum(-w.w.left)} past` : w.w.daysLeft == null ? noPaceText(w.w) : fDays(w.w.daysLeft);
     return `<div class="hrow">
       <div class="h-shop"><b>${esc(x.shop || x.name)}</b><span class="muted mono">${[x.shop && x.shop !== x.name ? esc(x.name) : '', esc(x.r.description || '')].filter(Boolean).join(' · ')}</span>
         <span class="muted">backup ${fLocal(x.r.ts)}${bAge > 3 ? ` <span class="flag ${x.c.backup || 'warn'}">${fNum(Math.floor(bAge))} days old</span>` : ''}</span></div>
