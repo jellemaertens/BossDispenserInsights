@@ -271,6 +271,38 @@ dialog.share-dlg::backdrop { background: color-mix(in srgb, var(--brand) 35%, tr
 .hf.warn b { color: var(--warn-ink); }
 .hf.crit { background: color-mix(in srgb, var(--crit) 10%, transparent); border-color: color-mix(in srgb, var(--crit) 40%, transparent); }
 .hf.crit b { color: var(--crit-ink); }
+/* Colorant age · all shops: a bar per colorant, then the canisters as rows that fit the width */
+.sh-h { font-size: 14px; margin: 6px 0 0; color: var(--head); }
+.sh-h .muted { font-weight: 400; font-size: 12.5px; }
+.sc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 4px 18px; }
+.sc-row { display: grid; grid-template-columns: 96px minmax(60px, 1fr) 104px; grid-template-areas: "name bar n" "name meta meta"; align-items: center; gap: 0 10px; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.sc-row:hover { background: var(--surface-2); }
+.sc-row.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.sc-name { grid-area: name; }
+.sc-bar { grid-area: bar; height: 10px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.sc-bar .fill { display: block; height: 100%; background: var(--warn); }
+.sc-n { grid-area: n; font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.sc-meta { grid-area: meta; font-size: 11px; color: var(--muted); }
+.sl { display: flex; flex-direction: column; }
+.sl-row { display: grid; grid-template-columns: minmax(170px, 1.5fr) 110px minmax(170px, 1.5fr) 96px 90px 84px 96px auto; gap: 6px 14px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.sl-head { font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--surface-2); border-top: 0; border-radius: 6px; padding: 6px 8px; margin: 0 -8px; }
+.sl-row .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sl-shop { display: flex; flex-direction: column; min-width: 0; }
+.sl-shop b { color: var(--head); }
+.sl-shop .muted { font-size: 11.5px; }
+.sl-age { min-width: 0; }
+.sl-age .track, .sl-age .fill { display: block; }
+.sl-age .fill { background: var(--warn); }
+.sl-age .val { min-width: 72px; }
+@media (max-width: 900px) {
+  .sl-head { display: none; }
+  .sl-row { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; gap: 6px 12px; }
+  .sl-shop { grid-column: 1 / 3; } .sl-open { grid-column: 3; grid-row: 1; }
+  .sl-row > [data-l] { display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
+  .sl-row > [data-l]::before { content: attr(data-l); font-size: 11px; color: var(--muted); font-family: inherit; }
+  .sl-row > [data-l="Age"] { grid-column: 1 / -1; align-items: stretch; }
+  .sc-list { grid-template-columns: 1fr; }
+}
 @media (max-width: 980px) { .hrow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "shop acts" "pts pts" "fig fig"; } }
 .al-acts .btn { padding: 4px 9px; font-size: 12.5px; }
 tr.al-new td { background: color-mix(in srgb, var(--crit) 6%, transparent); }
@@ -2596,30 +2628,38 @@ function renderShelf() {
   if (shelfSel.col && !cols.some(g => g.col.toUpperCase() === shelfSel.col)) shelfSel.col = '';
   const list = shelfSel.col ? over.filter(x => x.col.toUpperCase() === shelfSel.col) : over, CAP = 60, shown = shelfSel.all ? list : list.slice(0, CAP);
   const f = (label, v, sub = '') => `<div class="fact"><span class="label">${label}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
-  const shopsOver = new Set(over.map(x => x.name)), oldest = over[0];
+  const shopsOver = new Set(over.map(x => x.name)), oldest = over[0], maxAge = Math.max(limD * 1.5, ...list.map(x => x.age));
   body.innerHTML = `<div class="facts">
       ${f('Channels over the limit', fNum(over.length), `of ${fNum(all.length)} with a colorant · age at ${fDate(Math.min(alerts.to, nowWall()))}`)}
       ${f('Shops', fNum(shopsOver.size), `of ${fNum(new Set(all.map(x => x.name)).size)}`)}
       ${f('Oldest', fMonths(oldest.age, oldest.min) + ' months', `${esc(oldest.shop || oldest.name)} · ch ${oldest.n} ${esc(oldest.col)}`)}
       ${f('Most often old', esc(cols[0].col), `over the limit on ${cols[0].over.size} of ${cols[0].shops.size} shops`)}
     </div>
-    <div class="grid2" style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2.4fr);gap:18px;align-items:start;margin-top:12px">
-      <div class="tscroll"><table><thead><tr><th>Colorant</th><th class="num">Shops over</th><th class="num">Oldest</th><th class="num">Median use</th></tr></thead><tbody>
-        <tr class="click${shelfSel.col ? '' : ' sel'}" data-sh-col="" tabindex="0"><td><b>All colorants</b></td><td class="num">${fNum(shopsOver.size)}</td><td class="num">${fMonths(oldest.age, oldest.min)}</td><td></td></tr>
-        ${cols.map(g => `<tr class="click${shelfSel.col === g.col.toUpperCase() ? ' sel' : ''}" data-sh-col="${esc(g.col.toUpperCase())}" tabindex="0"><td><span class="chip">${esc(g.col)}</span></td><td class="num">${g.over.size} <span class="muted">of ${g.shops.size}</span></td><td class="num">${fMonths(g.oldest)} mo</td><td class="num">${fNum(median(g.use), 2)} L/mo</td></tr>`).join('')}
-      </tbody></table></div>
-      <div class="tscroll"><table><thead><tr><th>Shop</th><th class="num">Ch</th><th>Colorant</th><th class="num">Age (months)</th><th>Last refill</th><th class="num">In canister now</th><th class="num">Use per month</th><th class="num">Months to use it up</th><th></th></tr></thead><tbody>${shown.map(x => `<tr>
-        ${shopCell(x)}
-        <td class="num">${x.n}</td><td><span class="chip">${esc(x.col)}</span></td>
-        <td class="num"><b>${fMonths(x.age, x.min)}</b><div class="muted" style="font-size:11px">${x.min ? '≥ ' : ''}${fNum(x.age)} days</div></td>
-        <td class="mono">${x.lastR ? fDate(x.lastR) : '<span class="muted">none in the log</span>'}</td>
-        <td class="num">${x.lvl != null ? fNum(x.lvl, 2) + ' L' : '–'}</td>
-        <td class="num">${x.perMonth == null ? '–' : fNum(x.perMonth, 2) + ' L'}</td>
-        <td class="num">${x.monthsLeft == null ? '<span class="muted">no use</span>' : x.monthsLeft > 120 ? '> 120' : fNum(x.monthsLeft, x.monthsLeft < 10 ? 1 : 0)}</td>
-        <td><div class="al-acts"><button class="btn" type="button" data-sh-open="${esc(x.name)}">Open</button></div></td></tr>`).join('')}</tbody></table>
-        ${list.length > shown.length ? `<p class="al-quiet">${list.length - shown.length} more. <button class="btn" type="button" data-sh-all>Show all ${list.length}</button></p>` : ''}</div>
-    </div>`;
-  body.querySelectorAll('[data-sh-col]').forEach(r => { const go = () => { shelfSel.col = r.dataset.shCol; shelfSel.all = false; renderShelf(); }; r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); });
+    <h3 class="sh-h">Per colorant <span class="muted">· shops where it is older than ${lim} months, of the shops that have it · click one to list only its canisters</span></h3>
+    <div class="sc-list">
+      <button type="button" class="sc-row${shelfSel.col ? '' : ' sel'}" data-sh-col=""><span class="sc-name"><b>All colorants</b></span>
+        <span class="sc-bar"><span class="fill" style="width:${(shopsOver.size / Math.max(1, new Set(all.map(x => x.name)).size) * 100).toFixed(1)}%"></span></span>
+        <span class="sc-n"><b>${fNum(shopsOver.size)}</b> of ${fNum(new Set(all.map(x => x.name)).size)} shops</span><span class="sc-meta">${fNum(over.length)} canisters · oldest ${fMonths(oldest.age, oldest.min)} mo</span></button>
+      ${cols.map(g => `<button type="button" class="sc-row${shelfSel.col === g.col.toUpperCase() ? ' sel' : ''}" data-sh-col="${esc(g.col.toUpperCase())}"><span class="sc-name"><span class="chip">${esc(g.col)}</span></span>
+        <span class="sc-bar"><span class="fill" style="width:${(g.over.size / g.shops.size * 100).toFixed(1)}%"></span></span>
+        <span class="sc-n"><b>${g.over.size}</b> of ${g.shops.size} shops</span><span class="sc-meta">oldest ${fMonths(g.oldest)} mo · uses ${fNum(median(g.use), 2)} L/mo</span></button>`).join('')}
+    </div>
+    <h3 class="sh-h">${shelfSel.col ? `${esc(cols.find(g => g.col.toUpperCase() === shelfSel.col)?.col || shelfSel.col)} canisters` : 'Canisters'} older than ${lim} months <span class="muted">· oldest first · ${fNum(list.length)}</span></h3>
+    <div class="sl">
+      <div class="sl-row sl-head"><span>Shop</span><span>Channel</span><span>Age</span><span>Last refill</span><span class="num">In canister now</span><span class="num">Use per month</span><span class="num">Months to use it up</span><span></span></div>
+      ${shown.map(x => `<div class="sl-row">
+        <span class="sl-shop"><b>${esc(x.shop || x.name)}</b><span class="muted mono">${[x.shop && x.shop !== x.name ? esc(x.name) : '', esc(x.r.description || '')].filter(Boolean).join(' · ')}</span></span>
+        <span data-l="Channel">ch ${x.n} <span class="chip">${esc(x.col)}</span></span>
+        <span data-l="Age"><span class="inbar sl-age"><span class="track"><span class="fill" style="width:${Math.min(100, x.age / maxAge * 100).toFixed(1)}%"></span><span class="minmark" style="left:${(limD / maxAge * 100).toFixed(1)}%" title="limit ${lim} months"></span></span><span class="val"><b>${fMonths(x.age, x.min)}</b> mo</span></span></span>
+        <span data-l="Last refill" class="mono">${x.lastR ? fDate(x.lastR) : '<span class="muted">none in the log</span>'}</span>
+        <span data-l="In canister now" class="num">${x.lvl != null ? fNum(x.lvl, 2) + ' L' : '–'}</span>
+        <span data-l="Use per month" class="num">${x.perMonth == null ? '–' : fNum(x.perMonth, 2) + ' L'}</span>
+        <span data-l="Months to use it up" class="num">${x.monthsLeft == null ? '<span class="muted">no use</span>' : x.monthsLeft > 120 ? '<b>&gt; 120</b>' : x.monthsLeft > 24 ? `<b>${fNum(x.monthsLeft)}</b>` : fNum(x.monthsLeft, x.monthsLeft < 10 ? 1 : 0)}</span>
+        <span class="sl-open al-acts"><button class="btn" type="button" data-sh-open="${esc(x.name)}">Open</button></span>
+      </div>`).join('')}
+    </div>
+    ${list.length > shown.length ? `<p class="al-quiet">${list.length - shown.length} more. <button class="btn" type="button" data-sh-all>Show all ${list.length}</button></p>` : ''}`;
+  body.querySelectorAll('[data-sh-col]').forEach(r => r.addEventListener('click', () => { shelfSel.col = r.dataset.shCol; shelfSel.all = false; renderShelf(); }));
   body.querySelector('[data-sh-all]')?.addEventListener('click', () => { shelfSel.all = true; renderShelf(); });
   body.querySelectorAll('[data-sh-open]').forEach(b => b.addEventListener('click', () => openShare(b.dataset.shOpen, 'levels')));
 }
