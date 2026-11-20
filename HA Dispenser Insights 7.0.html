@@ -297,6 +297,13 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
 </header>
 <div class="page">
 <section class="welcome" id="welcome">
+    <div class="filters" id="home-filters" role="group" aria-label="Period" hidden>
+      <span class="label">Period</span>
+      <span class="seg" id="al-win"><button data-p="all">All data</button><button data-p="365">12 months</button><button data-p="90">90 days</button><button data-p="30">30 days</button><button data-p="7">7 days</button></span>
+      <span class="dates"><input type="date" id="al-from" aria-label="From date"><span class="muted">to</span><input type="date" id="al-to" aria-label="To date"></span>
+      <span class="spacer"></span>
+      <span class="period-text" id="al-period-text"></span>
+    </div>
     <div class="home-bar" id="home-bar" hidden>
       <nav class="tabs" role="tablist" id="home-tabs" aria-label="All shops">
         <button role="tab" data-home-tab="alerts">Pump &lt; 10%</button>
@@ -315,11 +322,11 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
       <div class="plate-head"><h2>Machine condition · all shops</h2>
         <div class="share-tools"><button class="btn" type="button" id="hl-csv" hidden>Export .csv</button></div></div>
       <div id="hl-body"></div>
-      <p class="note">One line per shop, from its latest backup. Shops with the most serious points come first. Error and pump figures cover the last 30 days of data in the backup; channel status the last 90 days, as on Channel health. <span class="flag crit">red</span> = act now, <span class="flag warn">amber</span> = keep an eye on it. The points:
+      <p class="note">One line per shop, from its latest backup. Shops with the most serious points come first. The figures cover the chosen period: channel status is worked out over it as on Channel health with that period, brush and colorant age are taken at its end. Canisters at minimum, the next piston and the backup are the state now. <span class="flag crit">red</span> = act now, <span class="flag warn">amber</span> = keep an eye on it. The points:
         <b>Channels to check</b> = channels with status Check on Channel health (an Autodrive 2 error in the last 30 days, self-test steps 35% above normal, or intake efficiency below 80%; amber from 3, red from 6);
-        <b>Pump &lt; 10%</b> = Autodrive 2 "pump filled less than 10%" errors (amber from 3, red from 10);
+        <b>Pump &lt; 10%</b> = Autodrive 2 "pump filled less than 10%" errors (amber from 3, red from 10 per 30 days, scaled to the length of the period);
         <b>Errors per 1,000 tints</b> = machine errors, counting errors in the same minute once, against tints (amber at twice the median of all shops, red at four times, with at least 5 errors);
-        <b>Brush</b> = tints since the last brush clean (amber over 150, red over 300; the dispenser asks for a clean after 100) and the median days between cleans;
+        <b>Brush</b> = tints since the last brush clean at the end of the period (amber over 150, red over 300; the dispenser asks for a clean after 100) and the median days between the cleans in the period;
         <b>Oldest colorant</b> = the oldest colorant age in a canister, with how many channels are past the age limit chosen on the Colorant age tab (no point: nearly every shop has a few slow colorants);
         <b>Canisters at minimum</b> (amber from 1, red from 3);
         <b>Next piston</b> = the soonest piston replacement on the Piston wear tab (red past the replacement point, amber within 60 days);
@@ -329,8 +336,6 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
     <section class="plate" id="alerts" data-home="alerts" hidden>
       <div class="plate-head"><h2>Pump filled less than 10% · all shops</h2>
         <div class="share-tools">
-          <span class="seg" id="al-win" aria-label="Period"><button data-p="all">All data</button><button data-p="365">12 months</button><button data-p="90">90 days</button><button data-p="30">30 days</button><button data-p="7">7 days</button></span>
-          <span class="dates"><input type="date" id="al-from" aria-label="Alerts from date"><span class="muted">to</span><input type="date" id="al-to" aria-label="Alerts to date"></span>
           <button class="btn" type="button" id="al-ack-all" hidden>Mark all as seen</button>
           <button class="btn" type="button" id="al-csv" hidden title="One line per error in the chosen period">Export .csv</button>
         </div></div>
@@ -343,21 +348,21 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
           <label class="controls" for="tr-col"><span class="label">Colorant</span><select class="sel" id="tr-col"></select></label>
           <button class="btn" type="button" id="tr-csv" hidden>Export .csv</button></div></div>
       <div id="tr-body"></div>
-      <p class="note">Travel counters as stored in each shop's latest backup, so the period chosen on the Pump &lt; 10% tab does not change them. The database does not state the unit; technicians note it in metres. <b>Pump travel</b> counts over the life of the channel. <b>Piston travel</b> is the piston counter, which restarts at every piston replacement, with or without the tube. <b>Piston &amp; tube travel</b> is the travel since the last "piston &amp; tube replaced" entry: the database keeps no tube counter, so after a piston-only replacement it adds the travel the technician noted at that swap (e.g. "HPP vervangen 422.27m"); without a noted figure it shows "≥", a lower limit. A piston-only entry on the same day as a piston &amp; tube entry counts as the same visit. <b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test of that channel, over all data in the backup, as on Channel health: <b>Normal</b> = median excluding the last 14 days, <b>Last 14 d</b> = average of the last 14 days with the change against normal, <b>Weekly steps</b> = weekly median. The export also lists the other counters and the last replacements. <b>Open</b> shows the shop's travel and steps for every channel.</p>
+      <p class="note">Travel counters as stored in each shop's latest backup, so the period does not change them; it does set the self-test steps. The database does not state the unit; technicians note it in metres. <b>Pump travel</b> counts over the life of the channel. <b>Piston travel</b> is the piston counter, which restarts at every piston replacement, with or without the tube. <b>Piston &amp; tube travel</b> is the travel since the last "piston &amp; tube replaced" entry: the database keeps no tube counter, so after a piston-only replacement it adds the travel the technician noted at that swap (e.g. "HPP vervangen 422.27m"); without a noted figure it shows "≥", a lower limit. A piston-only entry on the same day as a piston &amp; tube entry counts as the same visit. <b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test of that channel, in the chosen period, as on Channel health: <b>Normal</b> = median excluding the last 14 days, <b>Last 14 d</b> = average of the last 14 days with the change against normal, <b>Weekly steps</b> = weekly median. The export also lists the other counters and the last replacements. <b>Open</b> shows the shop's travel and steps for every channel.</p>
     </section>
     <section class="plate" id="wear" data-home="wear" hidden>
       <div class="plate-head"><h2>Piston wear forecast · all shops</h2>
         <div class="share-tools"><label class="controls" for="wr-lim"><span class="label">Replace at</span><select class="sel" id="wr-lim"></select></label>
           <button class="btn" type="button" id="wr-csv" hidden>Export .csv</button></div></div>
       <div id="wr-body"></div>
-      <p class="note">Every channel with a logged piston or piston &amp; tube replacement, soonest due first. The piston counter restarts at each replacement. <b>Replace at</b> is the piston travel at which it should be replaced: by default the median of the travel technicians noted when they replaced one (e.g. "HPP vervangen 422.27m") on all scanned shops. <b>Per day</b> = piston travel per day since the last replacement; shortly after a replacement (less than 60 days) the travel noted at that replacement over the time since the one before is used, or else the pump travel per day since the log starts. <b>Due</b> = when the piston counter reaches the replacement point at that pace, counted from the last data in the backup. Channels that never had a logged replacement aren't listed: the counter of a part fitted before the log can't be tied to a replacement point.</p>
+      <p class="note">Every channel with a logged piston or piston &amp; tube replacement, soonest due first. The piston counter restarts at each replacement. <b>Replace at</b> is the piston travel at which it should be replaced: by default the median of the travel technicians noted when they replaced one (e.g. "HPP vervangen 422.27m") on all scanned shops. <b>Per day</b> = piston travel per day since the last replacement; shortly after a replacement (less than 60 days) the travel noted at that replacement over the time since the one before is used, or else the pump travel per day since the log starts. <b>Due</b> = when the piston counter reaches the replacement point at that pace, counted from the last data in the backup. Channels that never had a logged replacement aren't listed: the counter of a part fitted before the log can't be tied to a replacement point. The forecast uses the counters at the time of the backup, as the database keeps no travel history; the period counts the replacements logged in it and marks them <span class="flag ok">in period</span>.</p>
     </section>
     <section class="plate" id="shelf" data-home="shelf" hidden>
       <div class="plate-head"><h2 id="sh-title">Colorant age · all shops</h2>
         <div class="share-tools"><span class="seg" id="sh-lim" aria-label="Age limit"><button data-m="6">6 months</button><button data-m="9">9 months</button><button data-m="12">12 months</button><button data-m="18">18 months</button><button data-m="24">24 months</button></span>
           <button class="btn" type="button" id="sh-csv" hidden>Export .csv</button></div></div>
       <div id="sh-body"></div>
-      <p class="note">Colorant age in each canister at the end of the shop's latest backup, worked out from the refills as on the Colorants tab: the colorant ages a day per day and every refill mixes fresh colorant in (age after = age before × litres before ÷ litres after). The age of what was in the canister when the log starts is unknown; while that could still be more than 5% of the canister the age shows as "≥", a minimum. <b>Use per month</b> = average over the last 90 days of data. <b>Months to use it up</b> = litres in the canister ÷ use per month: when that is long, the colorant keeps getting older, and a smaller refill or dropping the colorant at that shop could be considered. Click a colorant to list only its channels.</p>
+      <p class="note">Colorant age in each canister at the end of the chosen period (or of the shop's backup, when that is earlier), worked out from the refills as on the Colorants tab: the colorant ages a day per day and every refill mixes fresh colorant in (age after = age before × litres before ÷ litres after). The age of what was in the canister when the log starts is unknown; while that could still be more than 5% of the canister the age shows as "≥", a minimum. <b>Use per month</b> = average over the chosen period. <b>Months to use it up</b> = litres in the canister now ÷ use per month: when that is long, the colorant keeps getting older, and a smaller refill or dropping the colorant at that shop could be considered. Click a colorant to list only its channels.</p>
     </section>
     <section class="plate" id="share-pick" data-home="shops" hidden>
       <div class="plate-head"><h2>Choose a shop from the file share</h2>
@@ -1202,40 +1207,83 @@ function wearLimit() {
   return WEAR_STEPS.includes(s) ? { v: s, auto: false, med, n: notes.length } : { v: Math.round(med ?? 400), auto: true, med, n: notes.length };
 }
 const wearLimitText = L => L.auto ? (L.med != null ? `median travel noted at ${L.n} replacements` : 'default; no replacement notes with a travel yet') : 'chosen on the home page';
-const fDays = d => d == null ? '–' : d < 1 ? 'now' : d < 60 ? fNum(d) + ' days' : fNum(d / 30.44, d < 300 ? 1 : 0) + ' months';
+const fDays = d => d == null ? '–' : d < 1 ? 'now' : d < 60 ? fNum(d) + (fNum(d) === '1' ? ' day' : ' days') : fNum(d / 30.44, d < 300 ? 1 : 0) + ' months';
 
-/* Summary of one shop for the all-shops views, worked out from the full data set of its backup and cached with the scan.
-   Rates over the last 30 days of data, channel status over the last 90 days, the rest at the end of the data. */
+/* Data of one shop for the all-shops views, worked out from the full data set of its backup and cached with the scan.
+   Daily series (typed arrays, index 0 = day0, days on the dispenser clock) let every view work out its figures for any
+   period; canister levels, intake efficiency and the travel counters are the state at the end of the data.
+   tints / errs = tints and machine errors per day (errors in the same minute count once), use = litres per channel per day,
+   steps = self-test "steps detect problem" per channel per day (NaN = no test), refills = [time, added, level after],
+   ch = [colorant, level, minimum, at minimum 1/0, days to minimum, intake efficiency now], aerr = Autodrive 2 errors [time, ch],
+   cleans = brush cleans [time, tints before the tray went out, tints before it went back in] (counted from day0). */
 function shopSummary(raw) {
-  const keep = [D, S.from, S.to];
+  const keep = D;
   try {
     D = prepare(raw);
-    const end = D.maxT;
-    S.to = Math.floor(end / DAY) * DAY + DAY - 1; S.from = Math.max(D.minT, S.to + 1 - 90 * DAY);
-    const d30 = S.to + 1 - 30 * DAY, d90 = S.from, days90 = (S.to + 1 - d90) / DAY;
-    const st = D.active.map(channelStats);
-    const e30 = D.errs.filter(e => e.t >= d30), groups = new Map();
-    for (const e of e30) groups.set(e.group, (groups.get(e.group) || 0) + 1);
-    const use90 = new Map(); for (const x of D.disp) if (x.t >= d90) use90.set(x.c, (use90.get(x.c) || 0) + x.ml / 1000);
-    // colorant age per channel: [ch, colorant, age days, lower limit 1/0, last refill, litres now, litres used per month]
-    const ages = [];
-    for (const n of D.active) {
-      const c = D.ch.get(n); if (!c?.col) continue;
-      const a = colorantAge(n).at(end); if (!a) continue;
-      const lastR = D.refill.filter(r => r.c === n && r.add > 0).pop();
-      ages.push([n, c.col, Math.round(a.age * 10) / 10, a.min ? 1 : 0, lastR?.t ?? c.lastRefill ?? null, c.lvl, Math.round((use90.get(n) || 0) / days90 * 30.44 * 1000) / 1000]);
-    }
-    const B = D.brush, cl = B.cleans.filter(c => c.t <= end), lastC = cl[cl.length - 1];
-    const gaps90 = cl.slice(1).map((c, i) => [c.t, (c.t - cl[i].t) / DAY]).filter(g => g[0] >= d90).map(g => g[1]);
-    const brush = B.cleans.length || B.rounds.length ? { last: lastC?.t ?? null, since: lastC ? (end - lastC.t) / DAY : null,
-      tintsSince: lastC ? B.tints.length - lowerBound(B.tints, (lastC.in ?? lastC.t) + 1) : null, medGap: median(gaps90), n90: cl.filter(c => c.t >= d90).length } : null;
-    return { start: D.minT, end, model: D.model, firmware: raw.meta.firmware ?? null, clock: raw.meta.clock ?? null,
-      check: st.filter(s => s.status === 'check').map(s => s.n), watch: st.filter(s => s.status === 'watch').map(s => s.n),
-      low: st.filter(s => s.low).map(s => s.n), soon: st.filter(s => !s.low && s.daysToMin != null && s.daysToMin < 7).map(s => s.n),
-      tints30: D.jobs.filter(j => j.t >= d30).reduce((a, j) => a + j.n, 0), errs30: e30.length,
-      errInc30: new Set(e30.map(e => Math.floor(e.t / 60000))).size, errTop: [...groups].sort((a, b) => b[1] - a[1]).slice(0, 3),
-      ages, brush };
-  } finally { [D, S.from, S.to] = keep; }
+    const end = D.maxT, day0 = Math.floor(D.minT / DAY), nd = Math.floor(end / DAY) - day0 + 1;
+    const di = t => Math.floor(t / DAY) - day0, ok = i => i >= 0 && i < nd;
+    const tints = new Uint16Array(nd), errs = new Uint16Array(nd), use = {}, steps = {}, refills = {}, ch = {};
+    for (const j of D.jobs) { const i = di(j.t); if (ok(i)) tints[i] = Math.min(65535, tints[i] + j.n); }
+    const mins = new Set();
+    for (const e of D.errs) { const m = Math.floor(e.t / 60000), i = di(e.t); if (!mins.has(m) && ok(i)) { mins.add(m); errs[i]++; } }
+    for (const x of D.disp) { const i = di(x.t); if (ok(i)) (use[x.c] || (use[x.c] = new Float32Array(nd)))[i] += x.ml / 1000; }
+    for (const [n, o] of D.meas) { const a = steps[n] = new Float32Array(nd).fill(NaN); o.t.forEach((t, k) => { const i = di(t); if (ok(i) && o.p[k] != null) a[i] = o.p[k]; }); }
+    for (const r of D.refill) if (r.lvl != null && r.add > 0) (refills[r.c] || (refills[r.c] = [])).push([r.t, r.add, r.lvl]);
+    for (const a of Object.values(refills)) a.sort((x, y) => x[0] - y[0]);
+    for (const n of D.active) { const c = D.ch.get(n) || {}; ch[n] = [c.col || '', c.lvl ?? null, c.minLvl ?? null, c.low ? 1 : 0, c.daysToMin ?? null, c.effNow ?? null]; }
+    const B = D.brush, from0 = day0 * DAY, before = t => lowerBound(B.tints, t + 1) - lowerBound(B.tints, from0);
+    return { start: D.minT, end, day0, model: D.model, firmware: raw.meta.firmware ?? null, clock: raw.meta.clock ?? null,
+      tints, errs, use, steps, refills, ch, aerr: D.aerr.map(e => [e.t, e.c]),
+      brush: B.cleans.length || B.rounds.length ? B.cleans.map(c => [c.t, before(c.out ?? c.t), before(c.in ?? c.t)]) : null };
+  } finally { D = keep; }
+}
+
+/* ---------- the chosen period on a scanned shop ---------- */
+// Index range of the period in a shop's daily series, or null when the period lies outside its data
+function dayRange(s, from, to) {
+  const n = s.tints.length, a = Math.max(0, Math.floor(from / DAY) - s.day0), b = Math.min(n - 1, Math.floor(to / DAY) - s.day0);
+  return a <= b ? [a, b] : null;
+}
+const sumRange = (arr, rg) => { let x = 0; if (arr && rg) for (let i = rg[0]; i <= rg[1]; i++) x += arr[i]; return x; };
+// Days of data in the period
+const daysIn = rg => rg ? rg[1] - rg[0] + 1 : 0;
+/* Channel status for the period, as channelStats on Channel health: last 14 days of the period against the median of
+   the rest (10+ tests), Autodrive 2 errors in the last 30 days, intake efficiency now */
+function chStatusP(s, n, from, to) {
+  const a = s.steps[n], rg = dayRange(s, from, to), eff = s.ch[n]?.[5] ?? null;
+  const rf = Math.floor((to + 1 - 14 * DAY) / DAY) - s.day0, recent = [], ref = [];
+  if (a && rg) for (let i = rg[0]; i <= rg[1]; i++) if (!isNaN(a[i])) (i >= rf ? recent : ref).push(a[i]);
+  const count = recent.length + ref.length, rec = mean(recent), nrm = ref.length >= 10 ? median(ref) : null, change = rec != null && nrm ? rec / nrm - 1 : null;
+  let errs = 0, errsRecent = 0;
+  for (const [t, c] of s.aerr) if (c === n && t >= from && t <= to) { errs++; if (t >= to + 1 - 30 * DAY) errsRecent++; }
+  return !count ? 'none' : (errsRecent > 0 || (change ?? 0) >= 0.35 || (eff != null && eff < 80)) ? 'check'
+    : ((change ?? 0) >= 0.2 || errs >= 3 || (eff != null && eff < 100)) ? 'watch' : 'ok';
+}
+/* Self-test steps of a channel in the period, as stepStats did over all data: last value, normal = median before the last
+   14 days (10+ values), last 14 days = mean, weekly medians; the 14 days end with the newest test in the period */
+function stepStatsP(s, n, from, to) {
+  const a = s?.steps?.[n], rg = s && dayRange(s, from, to);
+  if (!a || !rg) return null;
+  let last = -1; for (let i = rg[1]; i >= rg[0]; i--) if (!isNaN(a[i])) { last = i; break; }
+  if (last < 0) return null;
+  const rf = last + 1 - 14, recent = [], ref = [], weeks = new Map();
+  for (let i = rg[0]; i <= last; i++) {
+    if (isNaN(a[i])) continue;
+    (i >= rf ? recent : ref).push(a[i]);
+    const w = weekStart((s.day0 + i) * DAY); (weeks.get(w) || weeks.set(w, []).get(w)).push(a[i]);
+  }
+  const rec = mean(recent), nrm = ref.length >= 10 ? median(ref) : null;
+  return { latest: a[last], latestT: (s.day0 + last) * DAY, recent: rec, ref: nrm, change: rec != null && nrm ? rec / nrm - 1 : null, spark: [...weeks].map(([w, v]) => [w, median(v)]) };
+}
+// Colorant age at time t from the refills, as colorantAge on the Colorants tab (age 0 at the start of the data)
+function ageAtP(refs, t0, t) {
+  if (t < t0) return null;
+  let age = 0, w = 1, tp = t0, last = null;
+  for (const [rt, add, lvl] of refs || []) {
+    if (rt > t) break; if (rt < t0) continue;
+    age += (rt - tp) / DAY; const f = lvl > 0 ? Math.max(0, lvl - add) / lvl : 0; age *= f; w *= f; tp = rt; last = rt;
+  }
+  return { age: age + (t - tp) / DAY, w, min: w > 0.05, last };
 }
 
 /* Pump travel of all channels: the travel counters stored per channel in the database (state at the time the file was read) */
@@ -1993,23 +2041,7 @@ async function openShare(name, tab) {
    Results are kept in IndexedDB per folder with the backup's time and size, so only backups that
    changed are read again. Event times are the dispenser's local clock stored as UTC, like everywhere
    on this page; "now" is shifted the same way to compare with them. */
-const SCAN_V = 8;
-/* Self-test "steps detect problem" per channel over all data in the backup, worked out like channelStats
-   on Channel health: last value, normal = median before the last 14 days (10+ values), last 14 days = mean,
-   and weekly medians for the sparkline. The 14 days end with the day of the newest self-test. */
-function stepStats(ad2) {
-  const out = {};
-  let end = -Infinity; for (const pts of Object.values(ad2 || {})) for (const [t] of pts) if (t > end) end = t;
-  if (!isFinite(end)) return out;
-  const recentFrom = Math.floor(end / DAY) * DAY + DAY - 14 * DAY;
-  for (const [c, pts] of Object.entries(ad2)) {
-    const recent = [], ref = [], weeks = new Map();
-    for (const [t, v] of pts) { (t >= recentFrom ? recent : ref).push(v); const w = weekStart(t); (weeks.get(w) || weeks.set(w, []).get(w)).push(v); }
-    const last = pts[pts.length - 1], rec = mean(recent), nrm = ref.length >= 10 ? median(ref) : null;
-    out[c] = { latest: last[1], latestT: last[0], recent: rec, ref: nrm, change: rec != null && nrm ? rec / nrm - 1 : null, spark: [...weeks].map(([w, a]) => [w, median(a)]) };
-  }
-  return out;
-}   // raise when MDF.pumpAlerts returns more, so cached scans are read again
+const SCAN_V = 9;   // raise when the scan keeps more, so cached scans are read again
 const alerts = { res: new Map(), err: new Map(), run: null, again: false, scannedAt: 0, preset: '30', from: 0, to: 0 };
 const nowWall = () => Date.now() - new Date().getTimezoneOffset() * 60000;
 /* Period of the shop alerts, the same choices as the period filter of a shop: whole days up to and including
@@ -2136,12 +2168,12 @@ async function scanShops() {
         else {
           const buf = await readShareFile(it.name, it);
           await new Promise(res => setTimeout(res, 0));
+          // the self-tests come with the full data set in sum.steps
           const { ad2, ...rest } = MDF.pumpAlerts(buf);
-          // the machine condition summary needs the full data set; a backup without dispense data still gets its alerts
+          // the other all-shops views need the full data set; a backup without dispense data still gets its alerts
           let sum = null, sumErr = '';
           try { sum = shopSummary(MDF.toRaw(buf, it.name)); } catch (e) { sumErr = e.message; }
-          // only the step figures are cached, not every daily self-test
-          r = { v: SCAN_V, ts: it.ts, size: it.size, ...rest, steps: stepStats(ad2), sum, sumErr };
+          r = { v: SCAN_V, ts: it.ts, size: it.size, ...rest, sum, sumErr };
           idbSet('scan.' + it.name, r);
         }
       }
@@ -2178,6 +2210,9 @@ function renderHomeTabs() {
   const avail = HOME_TABS.filter(t => t === 'shops' || ((alerts.res.size || alerts.run) && parts(t).some(p => !p.hidden)));
   const cur = avail.includes(homeTab) ? homeTab : avail[0];
   $('#home-bar').hidden = avail.length < 2;
+  // one period for every tab; the shop list has none
+  $('#home-filters').hidden = $('#home-bar').hidden || cur === 'shops';
+  $('#al-period-text').textContent = alertsPeriodText().replace(/^./, c => c.toUpperCase());
   for (const b of $('#home-tabs').children) {
     const t = b.dataset.homeTab, base = b.dataset.label || (b.dataset.label = b.textContent), n = homeBadge[t];
     b.hidden = !avail.includes(t);
@@ -2284,6 +2319,7 @@ function travelRows(col, by) {
       noted: noted.reduce((a, v) => a + (v ?? 0), 0), tubeHow: !swaps.length ? 'counter' : noted.every(v => v != null) ? 'noted' : 'min' };
     x.tube = t[1] == null ? null : t[1] + x.noted;
     x.val = x[by];
+    x.steps = stepStatsP(r.sum, +n, alerts.from, alerts.to);   // self-test steps in the chosen period
     rows.push(x);
   }
   return rows.sort((a, b) => (a.val == null) - (b.val == null) || (b.val ?? 0) - (a.val ?? 0) || (a.shop || a.name).localeCompare(b.shop || b.name));
@@ -2304,7 +2340,7 @@ function travelCell(x, k, max) {
 }
 // Self-test steps of the channel, the same columns as "Condition per channel" on Channel health
 function stepCells(x) {
-  const s = x.r.steps?.[x.n];
+  const s = x.steps;
   if (!s) return '<td class="num muted">–</td><td class="num muted">–</td><td class="num muted">–</td><td><span class="muted">–</span></td>';
   return `<td class="num" title="${s.latestT ? fDate(s.latestT) : ''}">${fNum(s.latest)}</td><td class="num">${fNum(s.ref)}</td>
     <td class="num">${fNum(s.recent)} <span class="delta ${s.change > 0.05 ? 'up' : s.change < -0.05 ? 'down' : ''}">${s.change != null ? '(' + fPct(s.change) + ')' : ''}</span></td>
@@ -2378,8 +2414,15 @@ function renderWear() {
   homeBadge.wear = { n: over.length + soon.length, crit: over.length > 0 };
   const max = Math.max(L.v * 1.2, ...rows.map(x => x.w.piston));
   const f = (label, v, sub = '') => `<div class="fact"><span class="label">${label}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
+  // replacements logged in the period on all scanned shops (a piston and a piston & tube entry on the same day are one visit)
+  const { from, to } = periodNow(), visits = new Map();
+  for (const [name, r] of alerts.res) for (const e of r.replaced || []) if (e[0] >= from && e[0] <= to) {
+    const k = `${name}/${e[1]}/${Math.floor(e[0] / DAY)}`; visits.set(k, Math.max(visits.get(k) || 0, e[4] ?? 142));
+  }
+  const nTube = [...visits.values()].filter(v => v === 142).length;
   body.innerHTML = `<div class="facts">
       ${f('Channels followed', fNum(rows.length), `on ${new Set(rows.map(x => x.name)).size} shops`)}
+      ${f('Replacements in period', fNum(visits.size), visits.size ? `${nTube} piston &amp; tube · ${visits.size - nTube} piston only · ${esc(alertsPeriodText())}` : esc(alertsPeriodText()))}
       ${f('Past the replacement point', fNum(over.length), over.length ? over.slice(0, 3).map(x => esc(x.shop || x.name)).join(', ') + (over.length > 3 ? ' …' : '') : '')}
       ${f('Due within 60 days', fNum(soon.length))}
       ${f('Replace at', fNum(L.v), wearLimitText(L))}
@@ -2390,7 +2433,7 @@ function renderWear() {
       <td><div class="inbar" style="min-width:200px"><div class="track"><div class="fill${x.w.status === 'over' ? ' low' : ''}" style="width:${Math.min(100, x.w.piston / max * 100).toFixed(1)}%"></div><span class="minmark" style="left:${(L.v / max * 100).toFixed(1)}%" title="replace at ${fNum(L.v)}"></span></div><span class="val">${fNum(x.w.piston)}</span></div></td>
       <td class="num" title="${esc(x.w.how)}">${x.w.rate ? fNum(x.w.rate, 2) : '–'}</td>
       <td>${wearDue(x.w, L)}</td>
-      <td><span class="mono">${fDate(x.lastE[0])}</span> <span class="muted">${(x.lastE[4] ?? 142) === 141 ? 'piston' : 'piston &amp; tube'}</span>${x.lastE[2] ? `<div class="muted" style="font-size:11px;white-space:normal;max-width:280px">${esc(replNote(x.lastE))}</div>` : ''}</td>
+      <td><span class="mono">${fDate(x.lastE[0])}</span>${x.lastE[0] >= from && x.lastE[0] <= to ? ' <span class="flag ok">in period</span>' : ''} <span class="muted">${(x.lastE[4] ?? 142) === 141 ? 'piston' : 'piston &amp; tube'}</span>${x.lastE[2] ? `<div class="muted" style="font-size:11px;white-space:normal;max-width:280px">${esc(replNote(x.lastE))}</div>` : ''}</td>
       <td><div class="al-acts"><button class="btn" type="button" data-wr-open="${esc(x.name)}">Open</button></div></td></tr>`).join('')}</tbody></table></div>`;
   body.querySelectorAll('[data-wr-open]').forEach(b => b.addEventListener('click', () => openShare(b.dataset.wrOpen, 'overview')));
 }
@@ -2406,11 +2449,25 @@ const SHELF_STEPS = [6, 9, 12, 18, 24];
 const shelfMonths = () => SHELF_STEPS.includes(+store.get('ha.shelf')) ? +store.get('ha.shelf') : 12;
 const MONTH = 30.44;
 const shelfSel = { col: '', all: false };
-// every channel with a colorant age; a = [ch, colorant, age days, lower limit, last refill, litres now, litres per month]
+// The chosen period (whole days, dispenser clock); a page left open past midnight moves on with the day
+function periodNow() { if (alerts.preset !== 'custom') setAlertsPreset(alerts.preset); return { from: alerts.from, to: alerts.to }; }
+// Colorant age per channel of a shop at time t: [{ n, col, age, min, last refill }]
+function agesAt(s, t) {
+  const out = [];
+  for (const [n, c] of Object.entries(s.ch)) { if (!c[0]) continue; const a = ageAtP(s.refills[n], s.start, t); if (a) out.push({ n: +n, col: String(c[0]).trim(), ...a }); }
+  return out;
+}
+// every channel with a colorant age at the end of the period (or of the backup, when that is earlier), use per month in the period
 function shelfRows() {
-  const rows = [];
-  for (const [name, r] of alerts.res) for (const a of r.sum?.ages || [])
-    rows.push({ name, shop: shopOf(name), r, n: a[0], col: String(a[1]).trim(), age: a[2], min: !!a[3], lastR: a[4], lvl: a[5], perMonth: a[6], monthsLeft: a[5] > 0 && a[6] > 0.001 ? a[5] / a[6] : null });
+  const { from, to } = periodNow(), rows = [];
+  for (const [name, r] of alerts.res) {
+    const s = r.sum; if (!s) continue;
+    const rg = dayRange(s, from, to), months = daysIn(rg) / MONTH;
+    for (const a of agesAt(s, Math.min(to, s.end))) {
+      const lvl = s.ch[a.n][1], perMonth = months > 0 ? sumRange(s.use[a.n], rg) / months : null;
+      rows.push({ name, shop: shopOf(name), r, n: a.n, col: a.col, age: a.age, min: a.min, lastR: a.last, lvl, perMonth, monthsLeft: lvl > 0 && perMonth > 0.001 ? lvl / perMonth : null });
+    }
+  }
   return rows.sort((a, b) => b.age - a.age);
 }
 const fMonths = (x, min) => (min ? '≥ ' : '') + fNum(x / MONTH, x / MONTH < 10 ? 1 : 0);
@@ -2427,14 +2484,14 @@ function renderShelf() {
   if (!over.length) { body.innerHTML = `<div class="empty">No canister on the scanned shops holds colorant older than ${lim} months.</div>`; return; }
   // per colorant: on how many shops it is over the limit, out of the shops that have it
   const byCol = new Map();
-  for (const x of all) { const k = x.col.toUpperCase(), g = byCol.get(k) || byCol.set(k, { col: x.col, shops: new Set(), over: new Set(), n: 0, use: [], oldest: 0 }).get(k); g.shops.add(x.name); g.use.push(x.perMonth); if (x.age > limD) { g.over.add(x.name); g.n++; g.oldest = Math.max(g.oldest, x.age); } }
+  for (const x of all) { const k = x.col.toUpperCase(), g = byCol.get(k) || byCol.set(k, { col: x.col, shops: new Set(), over: new Set(), n: 0, use: [], oldest: 0 }).get(k); g.shops.add(x.name); if (x.perMonth != null) g.use.push(x.perMonth); if (x.age > limD) { g.over.add(x.name); g.n++; g.oldest = Math.max(g.oldest, x.age); } }
   const cols = [...byCol.values()].filter(g => g.n).sort((a, b) => b.over.size - a.over.size || b.oldest - a.oldest);
   if (shelfSel.col && !cols.some(g => g.col.toUpperCase() === shelfSel.col)) shelfSel.col = '';
   const list = shelfSel.col ? over.filter(x => x.col.toUpperCase() === shelfSel.col) : over, CAP = 60, shown = shelfSel.all ? list : list.slice(0, CAP);
   const f = (label, v, sub = '') => `<div class="fact"><span class="label">${label}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
   const shopsOver = new Set(over.map(x => x.name)), oldest = over[0];
   body.innerHTML = `<div class="facts">
-      ${f('Channels over the limit', fNum(over.length), `of ${fNum(all.length)} with a colorant`)}
+      ${f('Channels over the limit', fNum(over.length), `of ${fNum(all.length)} with a colorant · age at ${fDate(Math.min(alerts.to, nowWall()))}`)}
       ${f('Shops', fNum(shopsOver.size), `of ${fNum(new Set(all.map(x => x.name)).size)}`)}
       ${f('Oldest', fMonths(oldest.age, oldest.min) + ' months', `${esc(oldest.shop || oldest.name)} · ch ${oldest.n} ${esc(oldest.col)}`)}
       ${f('Most often old', esc(cols[0].col), `over the limit on ${cols[0].over.size} of ${cols[0].shops.size} shops`)}
@@ -2444,13 +2501,13 @@ function renderShelf() {
         <tr class="click${shelfSel.col ? '' : ' sel'}" data-sh-col="" tabindex="0"><td><b>All colorants</b></td><td class="num">${fNum(shopsOver.size)}</td><td class="num">${fMonths(oldest.age, oldest.min)}</td><td></td></tr>
         ${cols.map(g => `<tr class="click${shelfSel.col === g.col.toUpperCase() ? ' sel' : ''}" data-sh-col="${esc(g.col.toUpperCase())}" tabindex="0"><td><span class="chip">${esc(g.col)}</span></td><td class="num">${g.over.size} <span class="muted">of ${g.shops.size}</span></td><td class="num">${fMonths(g.oldest)} mo</td><td class="num">${fNum(median(g.use), 2)} L/mo</td></tr>`).join('')}
       </tbody></table></div>
-      <div class="tscroll"><table><thead><tr><th>Shop</th><th class="num">Ch</th><th>Colorant</th><th class="num">Age (months)</th><th>Last refill</th><th class="num">In canister</th><th class="num">Use per month</th><th class="num">Months to use it up</th><th></th></tr></thead><tbody>${shown.map(x => `<tr>
+      <div class="tscroll"><table><thead><tr><th>Shop</th><th class="num">Ch</th><th>Colorant</th><th class="num">Age (months)</th><th>Last refill</th><th class="num">In canister now</th><th class="num">Use per month</th><th class="num">Months to use it up</th><th></th></tr></thead><tbody>${shown.map(x => `<tr>
         ${shopCell(x)}
         <td class="num">${x.n}</td><td><span class="chip">${esc(x.col)}</span></td>
         <td class="num"><b>${fMonths(x.age, x.min)}</b><div class="muted" style="font-size:11px">${x.min ? '≥ ' : ''}${fNum(x.age)} days</div></td>
         <td class="mono">${x.lastR ? fDate(x.lastR) : '<span class="muted">none in the log</span>'}</td>
         <td class="num">${x.lvl != null ? fNum(x.lvl, 2) + ' L' : '–'}</td>
-        <td class="num">${fNum(x.perMonth, 2)} L</td>
+        <td class="num">${x.perMonth == null ? '–' : fNum(x.perMonth, 2) + ' L'}</td>
         <td class="num">${x.monthsLeft == null ? '<span class="muted">no use</span>' : x.monthsLeft > 120 ? '> 120' : fNum(x.monthsLeft, x.monthsLeft < 10 ? 1 : 0)}</td>
         <td><div class="al-acts"><button class="btn" type="button" data-sh-open="${esc(x.name)}">Open</button></div></td></tr>`).join('')}</tbody></table>
         ${list.length > shown.length ? `<p class="al-quiet">${list.length - shown.length} more. <button class="btn" type="button" data-sh-all>Show all ${list.length}</button></p>` : ''}</div>
@@ -2461,40 +2518,61 @@ function renderShelf() {
 }
 function exportShelf() {
   const lim = shelfMonths(), rows = shelfRows().filter(x => x.age > lim * MONTH), dec = (v, dp) => v == null ? '' : String(Math.round(v * 10 ** dp) / 10 ** dp).replace('.', ',');
-  downloadCsv(`colorant-older-than-${lim}-months_${csvToday()}.csv`, ['Shop', 'Folder', 'Channel', 'Colorant', 'Age (days)', 'Age is a minimum', 'Last refill', 'Litres in canister', 'Litres used per month', 'Months to use it up', 'Backup from'],
+  downloadCsv(`colorant-older-than-${lim}-months_${csvToday()}.csv`, ['Shop', 'Folder', 'Channel', 'Colorant', `Age on ${fIso(Math.min(alerts.to, nowWall()))} (days)`, 'Age is a minimum', 'Last refill', 'Litres in canister now', `Litres used per month (${alertsPeriodText()})`, 'Months to use it up', 'Backup from'],
     rows.map(x => [x.shop || x.name, x.name, x.n, x.col, Math.round(x.age), x.min ? 'yes' : 'no', x.lastR ? csvWall(x.lastR).slice(0, 10) : '', dec(x.lvl, 2), dec(x.perMonth, 2), dec(x.monthsLeft, 1), csvLocal(x.r.ts)]));
 }
 
 /* ---------- Machine condition · all shops ---------- */
 function healthRows() {
   const W = new Map(); for (const x of wearRows().rows) { const p = W.get(x.name); if (!p || (x.w.daysLeft ?? 1e9) < (p.w.daysLeft ?? 1e9) || x.w.left < p.w.left) W.set(x.name, x); }
-  const lim = shelfMonths() * MONTH;
-  const rate = s => s && s.tints30 >= 50 ? s.errInc30 / s.tints30 * 1000 : null;
-  const medRate = median([...alerts.res.values()].map(r => rate(r.sum)).filter(v => v != null));
+  const lim = shelfMonths() * MONTH, { from, to } = periodNow();
+  // figures of the period per shop; p = null when the period lies outside the shop's data
+  const per = new Map();
+  for (const [name, r] of alerts.res) {
+    const s = r.sum, rg = s && dayRange(s, from, to);
+    if (!rg) { per.set(name, null); continue; }
+    const p = { days: daysIn(rg), tints: sumRange(s.tints, rg), errs: sumRange(s.errs, rg) };
+    p.rate = p.tints >= 50 ? p.errs / p.tints * 1000 : null;
+    p.check = Object.keys(s.ch).filter(n => chStatusP(s, +n, from, to) === 'check').map(Number);
+    // brush at the end of the period: tints since the last clean before it, median days between the cleans in it
+    const tEnd = Math.min(to, s.end);
+    if (s.brush) {
+      const cl = s.brush.filter(c => c[0] <= tEnd), last = cl[cl.length - 1];
+      const gaps = []; for (let i = 1; i < cl.length; i++) if (cl[i][0] >= from) gaps.push((cl[i][0] - cl[i - 1][0]) / DAY);
+      p.brush = { since: last ? (tEnd - last[0]) / DAY : null, tintsSince: last ? sumRange(s.tints, [0, rg[1]]) - last[2] : null, medGap: median(gaps), n: gaps.length };
+    }
+    const ages = agesAt(s, tEnd);
+    p.old = ages.filter(a => a.age > lim).sort((a, b) => b.age - a.age);
+    p.oldest = ages.reduce((m, a) => !m || a.age > m.age ? a : m, null);
+    per.set(name, p);
+  }
+  const medRate = median([...per.values()].map(p => p?.rate).filter(v => v != null));
   const rows = [];
   for (const [name, r] of alerts.res) {
-    const s = r.sum, x = { name, shop: shopOf(name), r, s, flags: [], c: {} };
+    const s = r.sum, p = per.get(name), x = { name, shop: shopOf(name), r, s, p, flags: [], c: {} };
     const flag = (lvl, key, text) => { x.flags.push([lvl, text]); x.c[key] = lvl; };
     const bAge = (Date.now() - r.ts) / DAY;
     if (bAge > 3) flag(bAge > 14 ? 'crit' : 'warn', 'backup', `Backup ${fNum(Math.floor(bAge))} days old`);
-    const end = endOf(r);
-    x.pump = r.events.filter(e => e[0] > end - 30 * DAY && e[0] <= end).length;
-    if (x.pump >= 3) flag(x.pump >= 10 ? 'crit' : 'warn', 'pump', `${x.pump}× pump < 10%`);
+    // pump alerts per 30 days: amber from 3, red from 10 (in a 7-day period from 1 and 3)
+    x.pump = r.events.filter(e => e[0] >= from && e[0] <= to).length;
+    const k = (p?.days ?? Math.min((to + 1 - from) / DAY, 3 * 365)) / 30;
+    if (x.pump >= Math.max(1, Math.round(3 * k))) flag(x.pump >= Math.max(2, Math.round(10 * k)) ? 'crit' : 'warn', 'pump', `${x.pump}× pump < 10%`);
     x.wear = W.get(name) || null;
     if (x.wear?.w.status === 'over') flag('crit', 'wear', `Piston ch ${x.wear.n} past replacement point`);
     else if (x.wear?.w.status === 'soon') flag('warn', 'wear', `Piston ch ${x.wear.n} due in ${fDays(x.wear.w.daysLeft)}`);
     if (!s) { flag('warn', 'read', `Data not read${r.sumErr ? ': ' + r.sumErr : ''}`); rows.push(x); continue; }
-    if (s.check.length >= 3) flag(s.check.length >= 6 ? 'crit' : 'warn', 'check', `${s.check.length} channels to check`);
     // a few events dated 2000 are on nearly every machine (logged before the clock is set at start-up); dates in the future are not
     if (s.clock?.future) flag('warn', 'clock', `Clock: ${fNum(s.clock.future)} event${s.clock.future > 1 ? 's' : ''} dated ${s.clock.years.filter(y => y > 2010).join(', ')}`);
-    x.rate = rate(s);
-    if (x.rate != null && medRate && s.errInc30 >= 5 && x.rate >= 2 * medRate) flag(x.rate >= 4 * medRate ? 'crit' : 'warn', 'errs', `${fNum(x.rate, 1)} errors per 1,000 tints`);
-    const b = s.brush;
-    if (b?.tintsSince > 150) flag(b.tintsSince > 300 ? 'crit' : 'warn', 'brush', `${fNum(b.tintsSince)} tints since brush clean`);
-    // old colorant is shown but gives no point: nearly every shop has a few slow colorants, see the Colorant age tab
-    x.old = (s.ages || []).filter(a => a[2] > lim).sort((a, b) => b[2] - a[2]);
-    x.oldest = (s.ages || []).reduce((m, a) => !m || a[2] > m[2] ? a : m, null);
-    if (s.low.length) flag(s.low.length >= 3 ? 'crit' : 'warn', 'low', `${s.low.length} canister${s.low.length > 1 ? 's' : ''} at minimum`);
+    x.low = Object.values(s.ch).filter(c => c[3]).length;
+    x.soon = Object.values(s.ch).filter(c => !c[3] && c[4] != null && c[4] < 7).length;
+    if (x.low) flag(x.low >= 3 ? 'crit' : 'warn', 'low', `${x.low} canister${x.low > 1 ? 's' : ''} at minimum`);
+    if (p) {
+      if (p.check.length >= 3) flag(p.check.length >= 6 ? 'crit' : 'warn', 'check', `${p.check.length} channels to check`);
+      x.rate = p.rate;
+      if (x.rate != null && medRate && p.errs >= 5 && x.rate >= 2 * medRate) flag(x.rate >= 4 * medRate ? 'crit' : 'warn', 'errs', `${fNum(x.rate, 1)} errors per 1,000 tints`);
+      if (p.brush?.tintsSince > 150) flag(p.brush.tintsSince > 300 ? 'crit' : 'warn', 'brush', `${fNum(p.brush.tintsSince)} tints since brush clean`);
+      // old colorant is shown but gives no point: nearly every shop has a few slow colorants, see the Colorant age tab
+    }
     rows.push(x);
   }
   const n = (x, l) => x.flags.filter(f => f[0] === l).length;
@@ -2516,19 +2594,20 @@ function renderHealth() {
       <div class="kpi ${crit.length ? 'alert' : ''}"><span class="label">Shops to act on</span><span class="v">${crit.length}<small>of ${rows.length}</small></span><span class="s">at least one red point</span></div>
       <div class="kpi"><span class="label">Shops to watch</span><span class="v">${warn.length}</span><span class="s">amber points only</span></div>
       <div class="kpi"><span class="label">Shops without points</span><span class="v">${ok.length}</span><span class="s">${ok.length ? ok.slice(0, 3).map(x => esc(x.shop || x.name)).join(', ') + (ok.length > 3 ? ' …' : '') : ''}</span></div>
-      <div class="kpi"><span class="label">Errors per 1,000 tints</span><span class="v">${medRate != null ? fNum(medRate, 1) : '–'}</span><span class="s">median of all shops, last 30 days</span></div>
+      <div class="kpi"><span class="label">Errors per 1,000 tints</span><span class="v">${medRate != null ? fNum(medRate, 1) : '–'}</span><span class="s">median of all shops, ${esc(alertsPeriodText())}</span></div>
     </div>`;
+  const none = '<td class="num muted" title="no data in this period">–</td>';
   html += `<div class="tscroll"><table><thead><tr><th>Shop</th><th>Points</th><th class="num">Channels to check</th><th class="num">Pump &lt; 10%</th><th class="num">Errors per 1,000 tints</th><th class="num">Brush</th><th class="num">Oldest colorant</th><th class="num">Canisters at minimum</th><th>Next piston</th><th>Backup from</th><th></th></tr></thead><tbody>${rows.map(x => {
-    const s = x.s, b = s?.brush, w = x.wear;
+    const s = x.s, p = x.p, b = p?.brush, w = x.wear;
     return `<tr>
       ${shopCell(x)}
       <td><div class="al-chs">${x.flags.length ? x.flags.slice().sort((a, b) => (a[0] === 'crit' ? 0 : 1) - (b[0] === 'crit' ? 0 : 1)).map(f => `<span class="flag ${f[0]}">${esc(f[1])}</span>`).join('') : '<span class="flag ok">No points</span>'}</div></td>
-      ${s ? cell(x, 'check', fNum(s.check.length)) + '' : '<td class="num muted">–</td>'}
+      ${p ? cell(x, 'check', fNum(p.check.length)) : none}
       ${cell(x, 'pump', fNum(x.pump))}
-      ${s ? cell(x, 'errs', x.rate != null ? fNum(x.rate, 1) : '–').replace('</td>', sub(`${fNum(s.errInc30)} errors · ${fNum(s.tints30)} tints`) + '</td>') : '<td class="num muted">–</td>'}
-      ${b ? cell(x, 'brush', `${b.tintsSince != null ? fNum(b.tintsSince) + ' tints' : '–'}`).replace('</td>', sub(`${b.since != null ? `last clean ${fDays(b.since).replace('now', 'today')}${b.since >= 1 ? ' ago' : ''}` : 'no clean logged'}${b.medGap != null ? ` · every ${fNum(b.medGap, 1)} days` : ''}`) + '</td>') : '<td class="num muted">–</td>'}
-      ${x.oldest ? cell(x, 'age', `${fMonths(x.oldest[2], x.oldest[3])} mo`).replace('</td>', sub(`ch ${x.oldest[0]} ${esc(x.oldest[1])}${x.old.length ? ` · ${x.old.length} over ${lim} mo` : ''}`) + '</td>') : '<td class="num muted">–</td>'}
-      ${s ? cell(x, 'low', fNum(s.low.length)).replace('</td>', s.soon.length ? sub(`${s.soon.length} more within 7 days`) + '</td>' : '</td>') : '<td class="num muted">–</td>'}
+      ${p ? cell(x, 'errs', x.rate != null ? fNum(x.rate, 1) : '–').replace('</td>', sub(`${fNum(p.errs)} errors · ${fNum(p.tints)} tints`) + '</td>') : none}
+      ${b ? cell(x, 'brush', `${b.tintsSince != null ? fNum(b.tintsSince) + ' tints' : '–'}`).replace('</td>', sub(`${b.since != null ? (b.since < 1 ? `last clean ${alerts.to >= s.end ? 'today' : 'on the last day'}` : `last clean ${fDays(b.since)} ${alerts.to >= s.end ? 'ago' : 'before the end'}`) : 'no clean logged'}${b.medGap != null ? ` · every ${fNum(b.medGap, 1)} days` : ''}`) + '</td>') : none}
+      ${p?.oldest ? cell(x, 'age', `${fMonths(p.oldest.age, p.oldest.min)} mo`).replace('</td>', sub(`ch ${p.oldest.n} ${esc(p.oldest.col)}${p.old.length ? ` · ${p.old.length} over ${lim} mo` : ''}`) + '</td>') : none}
+      ${s ? cell(x, 'low', fNum(x.low)).replace('</td>', x.soon ? sub(`${x.soon} more within 7 days`) + '</td>' : '</td>') : none}
       <td>${w ? `${wearDue(w.w, wearLimit())}${sub(`ch ${w.n} ${esc(w.col)} · ${fNum(w.w.piston)} travel`)}` : '<span class="muted">–</span>'}</td>
       <td class="mono">${fLocal(x.r.ts)}</td>
       <td><div class="al-acts"><button class="btn" type="button" data-hl-open="${esc(x.name)}">Open</button></div></td></tr>`; }).join('')}</tbody></table></div>`;
@@ -2538,10 +2617,11 @@ function renderHealth() {
 }
 function exportHealth() {
   const { rows } = healthRows(), dec = (v, dp) => v == null ? '' : String(Math.round(v * 10 ** dp) / 10 ** dp).replace('.', ',');
-  downloadCsv(`machine-condition_${csvToday()}.csv`, ['Shop', 'Folder', 'Red points', 'Amber points', 'Points', 'Channels to check', 'Pump < 10% (30 days)', 'Errors (30 days)', 'Tints (30 days)', 'Errors per 1,000 tints', 'Tints since brush clean', 'Median days between brush cleans', 'Oldest colorant (days)', 'Oldest colorant channel', 'Canisters at minimum', 'Next piston channel', 'Next piston days', 'Backup from'],
-    rows.map(x => { const s = x.s, w = x.wear; return [x.shop || x.name, x.name, x.flags.filter(f => f[0] === 'crit').length, x.flags.filter(f => f[0] === 'warn').length, x.flags.map(f => f[1]).join(' | '),
-      s ? s.check.length : '', x.pump, s ? s.errInc30 : '', s ? s.tints30 : '', dec(x.rate, 1), s?.brush?.tintsSince ?? '', dec(s?.brush?.medGap, 1),
-      x.oldest ? Math.round(x.oldest[2]) : '', x.oldest ? `${x.oldest[0]} ${x.oldest[1]}` : '', s ? s.low.length : '', w ? `${w.n} ${w.col}` : '', w ? (w.w.status === 'over' ? 0 : dec(w.w.daysLeft, 0)) : '', csvLocal(x.r.ts)]; }));
+  const { from, to } = alerts, period = alerts.preset === 'all' ? 'all-data' : alerts.preset === 'custom' ? `${fIso(from)}_to_${fIso(to)}` : alerts.preset === '365' ? '12-months' : `${alerts.preset}-days`;
+  downloadCsv(`machine-condition_${period}_${csvToday()}.csv`, ['Shop', 'Folder', 'Period', 'Red points', 'Amber points', 'Points', 'Channels to check', 'Pump < 10%', 'Errors', 'Tints', 'Errors per 1,000 tints', 'Tints since brush clean (end of period)', 'Median days between brush cleans', 'Oldest colorant (days, end of period)', 'Oldest colorant channel', 'Canisters at minimum (now)', 'Next piston channel', 'Next piston days', 'Backup from'],
+    rows.map(x => { const p = x.p, w = x.wear; return [x.shop || x.name, x.name, alertsPeriodText(), x.flags.filter(f => f[0] === 'crit').length, x.flags.filter(f => f[0] === 'warn').length, x.flags.map(f => f[1]).join(' | '),
+      p ? p.check.length : '', x.pump, p ? p.errs : '', p ? p.tints : '', dec(x.rate, 1), p?.brush?.tintsSince ?? '', dec(p?.brush?.medGap, 1),
+      p?.oldest ? Math.round(p.oldest.age) : '', p?.oldest ? `${p.oldest.n} ${p.oldest.col}` : '', x.s ? x.low : '', w ? `${w.n} ${w.col}` : '', w ? (w.w.status === 'over' ? 0 : dec(w.w.daysLeft, 0)) : '', csvLocal(x.r.ts)]; }));
 }
 
 /* CSV export of the all-shops views. Semicolons and a UTF-8 BOM, so Excel with Belgian/Dutch
@@ -2579,7 +2659,7 @@ function exportTravel() {
   const rnd = v => v == null ? '' : Math.round(v), vsAvg = (x, k) => x[k] != null && avg[k] && rows.length > 1 ? Math.round((x[k] / avg[k] - 1) * 100) : '';
   const day = e => e ? csvWall(e[0]).slice(0, 10) : '';
   downloadCsv(`travel_${col}_${csvToday()}.csv`, ['Shop', 'Folder', 'Channel', 'Colorant', 'Piston & tube travel', 'Piston & tube basis', 'Piston travel', 'Pump travel', 'Piston & tube vs average %', 'Piston vs average %', 'Pump vs average %', 'Last steps', 'Last steps date', 'Normal steps', 'Last 14 d steps', 'Last 14 d vs normal %', 'Last piston & tube replacement', 'Piston & tube note', 'Last piston-only replacement', 'Piston-only note', 'Backup from'],
-    rows.map(x => { const tr = tubeReplaced(x), s = x.r.steps?.[x.n] || {}; return [x.shop || x.name, x.name, x.n, col, rnd(x.tube), tubeBasis(x), rnd(x.piston), rnd(x.pump), vsAvg(x, 'tube'), vsAvg(x, 'piston'), vsAvg(x, 'pump'),
+    rows.map(x => { const tr = tubeReplaced(x), s = x.steps || {}; return [x.shop || x.name, x.name, x.n, col, rnd(x.tube), tubeBasis(x), rnd(x.piston), rnd(x.pump), vsAvg(x, 'tube'), vsAvg(x, 'piston'), vsAvg(x, 'pump'),
       rnd(s.latest), s.latestT ? csvWall(s.latestT).slice(0, 10) : '', rnd(s.ref), rnd(s.recent), s.change != null ? Math.round(s.change * 100) : '',
       day(x.lastTube), tr.date ? tr.text : tr.text === 'never' ? 'never replaced' : tr.text, day(x.lastSwap), x.lastSwap ? replNote(x.lastSwap) : '', csvLocal(x.r.ts)]; }));
 }
@@ -2648,7 +2728,8 @@ $('#tr-by').addEventListener('click', e => { const b = e.target.closest('button'
 $('#al-win').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setAlertsPreset(b.dataset.p); store.set('ha.alpreset', b.dataset.p); renderAlerts(); });
 // Own dates make a custom period (not remembered, like on a shop); an empty "from" means from the start of the data
 $('#al-from').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); alerts.from = isNaN(t) ? 0 : Math.min(t, alerts.to - DAY + 1); alerts.preset = 'custom'; renderAlerts(); });
-$('#al-to').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); if (isNaN(t)) return; alerts.to = Math.max(alerts.from + DAY - 1, t + DAY - 1); alerts.preset = 'custom'; renderAlerts(); });
+// a "to" date before the start makes the start that day too, so a period in the past can be set from either end
+$('#al-to').addEventListener('change', e => { const t = Date.parse(e.target.value + 'T00:00:00Z'); if (isNaN(t)) return; if (t < alerts.from) alerts.from = t; alerts.to = t + DAY - 1; alerts.preset = 'custom'; renderAlerts(); });
 // colleagues' contacted ticks show up when you come back to this window
 addEventListener('focus', () => { if (alerts.res.size) loadContacts(); });
 setInterval(() => { if (!document.hidden && alerts.res.size) loadContacts(); }, 60000);
