@@ -347,7 +347,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
   <nav class="tabs" role="tablist" id="tabs" data-needs-data hidden>
     <button role="tab" data-tab="overview">Channel health</button>
     <button role="tab" data-tab="autodrive">Autodrive 2</button>
-    <button role="tab" data-tab="levels">Colorant levels</button>
+    <button role="tab" data-tab="levels">Colorants</button>
     <button role="tab" data-tab="errors">Errors</button>
     <button role="tab" data-tab="usage">Usage</button>
     <button role="tab" data-tab="climate">Climate</button>
@@ -1092,6 +1092,33 @@ function viewOverview(v) {
   v.querySelectorAll('tr[data-ch]').forEach(r => { const go = () => { S.sel = [+r.dataset.ch]; setTab('autodrive'); }; r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); });
 }
 function maxLevel(n) { const o = D.level.get(n); return o ? Math.max(...o.v) : 0; }
+/* Colorant age in a canister, in days, taking the colorant as well mixed: it ages one day per day, dispensing takes
+   colorant of the average age (so the age stays), and a refill mixes fresh colorant in:
+   age after = age before × litres before refilling / litres after. The age at the start of the data is unknown and
+   set to 0; w is the share of the canister that is still that unknown colorant, so with w above 5% the age is a lower limit.
+   pts = [time, age, w] just before and just after each refill. */
+function colorantAge(n) {
+  const cache = D.ageCache || (D.ageCache = new Map());
+  if (cache.has(n)) return cache.get(n);
+  const t0 = D.minT, pts = [[t0, 0, 1]];
+  let age = 0, w = 1, tp = t0;
+  for (const r of D.refill.filter(r => r.c === n && r.lvl != null && r.add > 0 && r.t >= t0).sort((a, b) => a.t - b.t)) {
+    age += (r.t - tp) / DAY; pts.push([r.t, age, w]);
+    const f = r.lvl > 0 ? Math.max(0, r.lvl - r.add) / r.lvl : 0;
+    age *= f; w *= f; pts.push([r.t, age, w]); tp = r.t;
+  }
+  const at = t => { if (t < t0) return null; const i = lowerBound(pts.map(p => p[0]), t + 1) - 1; const p = pts[i]; return { age: p[1] + (t - p[0]) / DAY, w: p[2], min: p[2] > 0.05 }; };
+  const res = { pts, at };
+  cache.set(n, res);
+  return res;
+}
+// average age over a period, from one value per day
+function colorantAgeAvg(n, from, to) {
+  const a = colorantAge(n), vals = [];
+  for (let t = Math.floor(from / DAY) * DAY + DAY / 2; t <= to; t += DAY) { const x = a.at(t); if (x) vals.push(x); }
+  return vals.length ? { age: mean(vals.map(x => x.age)), min: vals.some(x => x.min) } : null;
+}
+const fAge = x => x == null ? '–' : (x.min ? '≥ ' : '') + fNum(x.age, x.age < 10 ? 1 : 0);
 
 /* Pump travel of all channels: the travel counters stored per channel in the database (state at the time the file was read) */
 function pumpOverview(stats) {
@@ -1297,12 +1324,27 @@ function viewLevels(v) {
   const low = rows.filter(c => c.low), soon = rows.filter(c => !c.low && c.daysToMin != null && c.daysToMin < 7);
   const errAtLow = D.aerr.filter(e => inP(e.t) && e.code === 0).map(e => ({ e, l: levelAt(e.c, e.t), m: D.ch.get(e.c)?.minLvl })).filter(x => x.l != null);
   const nearMin = errAtLow.filter(x => x.m != null && x.l <= x.m * 1.15).length;
+  // colorant age and refills per channel
+  const endT = Math.min(S.to, D.maxT), fromT = Math.max(S.from, D.minT);
+  const ar = rows.map(c => {
+    const rf = D.refill.filter(r => r.c === c.n && inP(r.t) && r.add > 0).sort((a, b) => a.t - b.t);
+    const gaps = rf.slice(1).map((r, i) => (r.t - rf[i].t) / DAY).filter(g => g > 0.5);
+    const before = median(rf.filter(r => r.lvl != null).map(r => Math.max(0, r.lvl - r.add)));
+    return { n: c.n, col: c.col, cap: c.cap, now: colorantAge(c.n).at(endT), avg: colorantAgeAvg(c.n, fromT, endT), L: levelAt(c.n, endT) ?? c.lvl,
+      refills: rf.length, added: rf.reduce((a, r) => a + r.add, 0), gap: mean(gaps), before, last: [...D.refill].reverse().find(r => r.c === c.n && r.add > 0 && r.t <= endT)?.t ?? null };
+  }).sort((a, b) => (b.now?.age ?? -1) - (a.now?.age ?? -1) || a.n - b.n);
+  const withAge = ar.filter(a => a.now && a.L > 0), litres = withAge.reduce((s, a) => s + a.L, 0);
+  const machineAge = litres ? { age: withAge.reduce((s, a) => s + a.L * a.now.age, 0) / litres, min: withAge.some(a => a.now.min) } : null;
+  const oldest = ar[0]?.now ? ar[0] : null, maxAge = Math.max(1, ...ar.map(a => a.now?.age || 0));
+  const nRefills = ar.reduce((s, a) => s + a.refills, 0), addedAll = ar.reduce((s, a) => s + a.added, 0);
   v.innerHTML = `
   <div class="kpis">
     <div class="kpi ${low.length ? 'alert' : ''}"><span class="label">At or below minimum</span><span class="v">${low.length}<small>canisters</small></span><span class="s">${low.map(c => `${c.n} ${esc(c.col)}`).join(', ') || 'none'}</span></div>
     <div class="kpi"><span class="label">Refill within 7 days</span><span class="v">${soon.length}<small>canisters</small></span><span class="s">at the use of the last 30 days</span></div>
     <div class="kpi"><span class="label">Colorant in machine</span><span class="v">${fNum(rows.reduce((a, c) => a + c.lvl, 0), 1)}<small>L</small></span><span class="s">${rows.length} canisters</span></div>
     <div class="kpi"><span class="label">"Pump filled < 10%" near minimum</span><span class="v">${nearMin}<small>of ${errAtLow.length}</small></span><span class="s">errors in period with the canister at most 15% above minimum</span></div>
+    <div class="kpi"><span class="label">Average colorant age</span><span class="v">${fAge(machineAge)}<small>days</small></span><span class="s">${oldest ? `all colorant in the machine${S.to < D.maxT ? ' at the end of the period' : ''} · oldest ch ${oldest.n} ${esc(oldest.col)}, ${fAge(oldest.now)} days` : ''}</span></div>
+    <div class="kpi"><span class="label">Refills</span><span class="v">${fNum(nRefills)}</span><span class="s">${fNum(addedAll, 1)} L added in period${nRefills ? ` · ${fNum(nRefills / Math.max(1, (S.to + 1 - S.from) / WEEK), 1)} per week` : ''}</span></div>
   </div>
   <div class="grid2">
     <section class="plate">
@@ -1324,10 +1366,27 @@ function viewLevels(v) {
     <section class="plate">
       <div class="plate-head"><h2 id="lvl-title"></h2><div class="legend"><span><i style="background:var(--s1)"></i>Level</span><span><i class="dash"></i>Minimum</span><span><i class="tri"></i>AD2 error</span><span><i class="dot"></i>Refill</span></div></div>
       <div class="chart" id="ch-level"></div>
+      <h3>Colorant age</h3>
+      <div class="chart" id="ch-age"></div>
       <div class="facts" id="lvl-facts"></div>
-      <p class="note">Rebuilt from the refills (level after filling) minus every dispense since. For this file it ends exactly on the level stored in the database.</p>
+      <p class="note">Level rebuilt from the refills (level after filling) minus every dispense since. For this file it ends exactly on the level stored in the database. Colorant age drops at every refill, as fresh colorant is mixed in.</p>
     </section>
-  </div>`;
+  </div>
+  <section class="plate">
+    <div class="plate-head"><h2>Colorant age and refills per channel</h2><span class="note">Oldest colorant first. Click a row for its level and age history.</span></div>
+    <div class="tscroll"><table><thead><tr><th class="num">Ch</th><th>Colorant</th><th>Age now</th><th class="num">Average age in period</th><th class="num">Refills</th><th class="num">Added</th><th class="num">Per refill</th><th class="num">Days between refills</th><th class="num">Left at refill</th><th>Last refill</th></tr></thead>
+    <tbody>${ar.map(a => `<tr class="click${a.n === n0 ? ' sel' : ''}" data-ach="${a.n}" tabindex="0"><td class="num">${a.n}</td><td><span class="chip">${esc(a.col || '—')}</span></td>
+      <td><div class="inbar" style="min-width:150px"><div class="track"><div class="fill" style="width:${((a.now?.age || 0) / maxAge * 100).toFixed(1)}%"></div></div><span class="val">${fAge(a.now)} d</span></div></td>
+      <td class="num">${fAge(a.avg)} d</td><td class="num">${a.refills}</td><td class="num">${fNum(a.added, 1)} L</td><td class="num">${a.refills ? fNum(a.added / a.refills, 2) + ' L' : '–'}</td>
+      <td class="num">${a.gap != null ? fNum(a.gap, 0) : '–'}</td><td class="num">${a.before != null ? `${fNum(a.before, 2)} L${a.cap ? ` <span class="muted">${fNum(a.before / a.cap * 100)}%</span>` : ''}` : '–'}</td>
+      <td class="mono">${a.last ? fDate(a.last) : '–'}</td></tr>`).join('')}</tbody></table></div>
+    <p class="note"><b>Colorant age</b> = how long, on average, the colorant in the canister has been in the machine, in days. The canister is taken as well mixed: the colorant ages one day per day, a dispense takes colorant of the average age, and a refill mixes fresh colorant in (age × litres before refilling ÷ litres after). The age at the start of the data is unknown, so <b>≥</b> marks a lower limit while more than 5% of the canister may still be colorant from before that. <b>Average colorant age</b> at the top weighs every canister by its litres. <b>Days between refills</b> is the average gap between refills in the period; <b>Left at refill</b> is the median level just before refilling, with its share of the canister.</p>
+  </section>
+  <section class="plate">
+    <div class="plate-head"><h2>Refill log · ch ${n0} ${esc(colOf(n0))}</h2><span class="note">Refills in the period, newest first.</span></div>
+    <div class="tscroll" id="refill-log"></div>
+  </section>`;
+  v.querySelectorAll('tr[data-ach]').forEach(r => { const go = () => { S.sel = [+r.dataset.ach]; render(); }; r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); });
   v.querySelectorAll('#lvlsort button').forEach(b => b.addEventListener('click', () => { S.lvlSort = b.dataset.s; render(); }));
   v.querySelectorAll('.lvl-row').forEach(r => { const go = () => { S.sel = [+r.dataset.ch]; render(); }; r.addEventListener('click', go); r.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }); });
   const c = D.ch.get(n0) || {}, o = D.level.get(n0) || { t: [], v: [] };
@@ -1346,8 +1405,21 @@ function viewLevels(v) {
     f('Level now', c.lvl != null ? fNum(c.lvl, 2) + ' L' : '–', c.minLvl != null ? `minimum ${fNum(c.minLvl, 2)} L` : ''),
     f('Used in period', fNum(usedP, 2) + ' L', c.perDay ? `${fNum(c.perDay * 1000)} ml/day lately` : ''),
     f('Refills in period', refillsP.length, gaps.length ? `every ${fNum(median(gaps))} days (median)` : ''),
-    f('Time at minimum', lows.length ? fNum(new Set(lows.map(([t]) => Math.floor(t / DAY))).size) + ' days' : '0 days', 'days with a level at or below minimum')
+    f('Time at minimum', lows.length ? fNum(new Set(lows.map(([t]) => Math.floor(t / DAY))).size) + ' days' : '0 days', 'days with a level at or below minimum'),
+    f('Colorant age now', fAge(colorantAge(n0).at(endT)) + ' days', 'average age of the colorant in the canister'),
+    f('Average age in period', fAge(colorantAgeAvg(n0, fromT, endT)) + ' days', 'mean of the daily values')
   ].join('');
+  // colorant age chart: the age climbs one day per day and drops at every refill
+  const ag = colorantAge(n0), a0 = ag.at(S.from), a1 = ag.at(endT);
+  const agePts = [...(a0 ? [[S.from, a0.age]] : []), ...ag.pts.filter(p => p[0] > S.from && p[0] <= endT).map(p => [p[0], p[1]]), ...(a1 ? [[endT, a1.age]] : [])];
+  timeChart($('#ch-age', v), { x0: S.from, x1: S.to, height: 200, zero: true, gap: 1e15, series: [{ name: 'Colorant age', color: css('--s2'), pts: agePts, gap: 1e15 }], yFmt: x => fNum(x), vFmt: x => fNum(x, 1) + ' days', yLabel: 'days', aria: 'Colorant age over time', emptyText: 'No age data for this channel' });
+  // refill log of the selected channel
+  const rl = D.refill.filter(r => r.c === n0 && r.add > 0 && inP(r.t)).sort((a, b) => b.t - a.t);
+  const allR = D.refill.filter(r => r.c === n0 && r.add > 0).sort((a, b) => a.t - b.t);
+  $('#refill-log', v).innerHTML = rl.length ? `<table><thead><tr><th>Date</th><th class="num">Added</th><th class="num">Level before</th><th class="num">Level after</th><th class="num">Days since the refill before</th><th class="num">Colorant age before → after</th></tr></thead><tbody>${rl.map(r => {
+    const i = allR.indexOf(r), prev = i > 0 ? allR[i - 1] : null, b = ag.at(r.t - 1), a = ag.at(r.t);
+    return `<tr><td class="mono">${fDateTime(r.t)}</td><td class="num">${fNum(r.add, 2)} L</td><td class="num">${r.lvl != null ? fNum(Math.max(0, r.lvl - r.add), 2) + ' L' : '–'}</td><td class="num">${r.lvl != null ? fNum(r.lvl, 2) + ' L' : '–'}</td>
+      <td class="num">${prev ? fNum((r.t - prev.t) / DAY, 1) : '–'}</td><td class="num">${b && a ? `${fAge(b)} → ${fAge(a)} d` : '–'}</td></tr>`; }).join('')}</tbody></table>` : '<div class="empty">No refills of this channel in the period.</div>';
 }
 
 function viewErrors(v) {

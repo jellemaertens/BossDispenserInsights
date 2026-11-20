@@ -23,7 +23,7 @@ for your name). For the full version, start it with `Start HA Dispenser Insights
 2. The home page scans every shop backup on the file share:
    - **Pump filled less than 10% · all shops**: new Autodrive 2 "pump filled less than 10%" errors per shop, with a shared *Contacted* checkbox and CSV export.
    - **Travel · W1W · all shops**: piston & tube, piston or pump travel per shop, with the Autodrive 2 self-test steps, the weekly curve and CSV export.
-3. **Open** on a shop, **Choose shop**, or **Open .mdf file** shows the full analysis of one machine: channel health, Autodrive 2, colorant levels, errors, usage, climate and brush maintenance.
+3. **Open** on a shop, **Choose shop**, or **Open .mdf file** shows the full analysis of one machine: channel health, Autodrive 2, colorants (levels, colorant age and refills), errors, usage, climate and brush maintenance.
 
 The file share path is set at the top of `Start HA Dispenser Insights.ps1` (`$SharePath`). The contacted
 ticks are stored in `HA Dispenser Insights contacts.json` in the root of that share.
