@@ -650,12 +650,21 @@ const MDF = (() => {
     const T = tables(db, ['Devices', 'EventTypes', 'EventLog', 'EventLogFloatAttributes', 'EventLogStringAttributes']);
     const dev = device(T);
     const devId = dev[0];
-    const typeNum = new Map(all(T.EventTypes, ['Id', 'Number']).map(([id, n]) => [id, n]));
+    const types = all(T.EventTypes, ['Id', 'Number', 'Name']);
+    const typeNum = new Map(types.map(([id, n]) => [id, n])), typeName = new Map(types.map(([, n, name]) => [n, name]));
+    /* Machine errors: "Error" (23) and the error events without text: 42 agitation alarm, 90 flash error, 91-93 pump /
+       table / valve over current. They are read from every device record of the database (an old or replaced dispenser
+       can have its own record) and also before the start of the data below, so no logged error is left out. */
+    const ERR = new Set([23, 42, 90, 91, 92, 93]);
     // 5/6 brush tray out/in, 13/14 flushing, 19/20 cleaning round
-    const WANT = new Set([108, 104, 105, 106, 128, 130, 139, 23, 29, 141, 142, 24, 34, 5, 6, 13, 14, 19, 20]);
+    const WANT = new Set([108, 104, 105, 106, 128, 130, 139, 29, 141, 142, 24, 34, 5, 6, 13, 14, 19, 20, ...ERR]);
     const ev = new Map();
     { const el = T.EventLog, rId = el.reader('Id'), rDev = el.reader('DeviceId'), rEv = el.reader('EventId'), rDate = el.reader('Date');
-      for (const rec of el.rows()) { if (rDev(rec) !== devId) continue; const num = typeNum.get(rEv(rec)); if (WANT.has(num)) ev.set(rId(rec), { id: rId(rec), num, t: rDate(rec), f: null, s: null }); } }
+      for (const rec of el.rows()) {
+        const num = typeNum.get(rEv(rec)), d = rDev(rec);
+        if (!WANT.has(num) || (d !== devId && !ERR.has(num))) continue;
+        ev.set(rId(rec), { id: rId(rec), num, t: rDate(rec), dev: d, f: null, s: null });
+      } }
     { const a = T.EventLogFloatAttributes, rE = a.reader('EventLogId'), rI = a.reader('Index'), rV = a.reader('Value');
       for (const rec of a.rows()) { const e = ev.get(rE(rec)); if (e) (e.f || (e.f = []))[rI(rec)] = rV(rec); } }
     { const a = T.EventLogStringAttributes, rE = a.reader('EventLogId'), rI = a.reader('Index'), rV = a.reader('Value');
@@ -665,7 +674,7 @@ const MDF = (() => {
     const MIN_T = Date.UTC(2010, 0, 1), MAX_T = Date.now() + 2 * DAYMS;
     const odd = [...ev.values()].filter(e => e.t < MIN_T || e.t > MAX_T);
     const events = [...ev.values()].filter(e => e.t >= MIN_T && e.t <= MAX_T).sort((a, b) => a.t - b.t || a.id - b.id);
-    const startEv = events.find(e => e.num === 108 || e.num === 128 || e.num === 130);
+    const startEv = events.find(e => e.dev === devId && (e.num === 108 || e.num === 128 || e.num === 130));
     if (!startEv) throw new MdfError('nodata', 'No Autodrive, dispense or refill events were found for the connected dispenser.');
     const t0 = Math.floor(startEv.t / DAYMS) * DAYMS;
     const mins = t => Math.floor((t - t0) / 60000), days = t => Math.floor((t - t0) / DAYMS);
@@ -675,6 +684,13 @@ const MDF = (() => {
     const raw = { ad2m: [], ad2f: [], ad2e: [], disp: [], jobs: [], refill: [], errs: [], climate: [], service: [], slack: [], brush: [] };
     const dispAgg = new Map(), jobAgg = new Map();
     for (const e of events) {
+      if (ERR.has(e.num)) {
+        // [time, message, during, short, channel, 1 = another device record]; errors without text get the event name
+        const other = e.dev !== devId ? 1 : 0;
+        if (e.num === 23) raw.errs.push([mins(e.t), S(e, 1), S(e, 2), S(e, 3), F(e, 4), other]);
+        else { const name = typeName.get(e.num) || 'Event ' + e.num; raw.errs.push([mins(e.t), name, '', name, null, other]); }
+        continue;
+      }
       if (e.t < t0) continue;
       switch (e.num) {
         case 108: raw.ad2m.push([mins(e.t), F(e, 1), F(e, 2), F(e, 3), F(e, 4), F(e, 5)]); break;
@@ -683,7 +699,6 @@ const MDF = (() => {
         case 128: { const k = days(e.t) + '/' + S(e, 2); const a = dispAgg.get(k) || dispAgg.set(k, [days(e.t), num(S(e, 2)), 0, 0]).get(k); a[2] += F(e, 1) || 0; a[3]++; break; }
         case 139: { const d = days(e.t); jobAgg.set(d, (jobAgg.get(d) || 0) + 1); raw.brush.push([Math.floor((e.t - t0) / 1000), 139]); break; }   // tint times, for tints between brush cleans
         case 130: raw.refill.push([mins(e.t), num(S(e, 1)), F(e, 1), F(e, 2), F(e, 3)]); break;
-        case 23: raw.errs.push([mins(e.t), S(e, 1), S(e, 2), S(e, 3), F(e, 4)]); break;
         case 29: raw.climate.push([days(e.t), F(e, 1), F(e, 2), F(e, 3), F(e, 4)]); break;
         // [time, channel, text, note, 141 piston only | 142 piston & tube]
         case 141: case 142: raw.service.push([mins(e.t), num(S(e, 2)), (e.num === 142 ? 'Piston & tube replaced' : 'Piston replaced') + (S(e, 4) ? ': ' + S(e, 4) : '') + (S(e, 3) ? ` (${S(e, 3)})` : ''), S(e, 4) || '', e.num]); break;
@@ -747,7 +762,9 @@ const MDF = (() => {
     if (tLog) { const fw = all(tLog, ['DeviceId', 'Attribute', 'Value', 'Date']).filter(r => r[0] === devId && r[1] === 'FIRMWARE' && r[2] && r[2] !== '..').sort((a, b) => b[3] - a[3]); firmware = fw[0]?.[2] ?? null; }
     const now = new Date(), pad = x => String(x).padStart(2, '0');
     raw.meta = { serial: dev[1], description: dev[2], location: '', dispenseCycles: dev[4], firmware, exported: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, source: fileName, t0: iso(t0), sqlVersion: db.version,
-      clock: odd.length ? { n: odd.length, future: odd.filter(e => e.t > MAX_T).length, years: [...new Set(odd.map(e => new Date(e.t).getUTCFullYear()))].sort() } : null };
+      clock: odd.length ? { n: odd.length, future: odd.filter(e => e.t > MAX_T).length, years: [...new Set(odd.map(e => new Date(e.t).getUTCFullYear()))].sort() } : null,
+      // machine errors with an impossible date (wrong dispenser clock): not in the log's periods, listed under it
+      badErrs: odd.filter(e => ERR.has(e.num)).sort((a, b) => a.t - b.t).map(e => [new Date(e.t).toISOString().slice(0, 16).replace('T', ' '), e.num === 23 ? S(e, 1) || '' : typeName.get(e.num) || '', e.dev !== devId ? 1 : 0]) };
     return raw;
   }
   return { open, toRaw, pumpAlerts, MdfError };
@@ -799,7 +816,8 @@ function prepare(raw) {
   const disp = (raw.disp || []).map(([d, c, ml, n]) => ({ t: td(d), c, ml, n }));
   const jobs = (raw.jobs || []).map(([d, n]) => ({ t: td(d), n }));
   const refill = (raw.refill || []).map(([m, c, add, lvl, minLvl]) => ({ t: tm(m), c, add, lvl, minLvl }));
-  const errs = (raw.errs || []).map(([m, msg, ph, sh, c]) => ({ t: tm(m), msg: msg || '', ph: ph || '', sh: sh || '', c, group: errGroup(msg || '', sh) }));
+  // other = logged under another device record of the database (e.g. a dispenser that was replaced)
+  const errs = (raw.errs || []).map(([m, msg, ph, sh, c, other]) => ({ t: tm(m), msg: msg || '', ph: ph || '', sh: sh || '', c, other: !!other, group: errGroup(msg || '', sh) }));
   const climate = (raw.climate || []).map(([d, a, b, c2, d2]) => ({ t: td(d), tmin: a, tmax: b, hmin: c2, hmax: d2 }));
   // type 141/142 = piston (& tube) replaced; files saved before notes were kept have only the text
   const service = (raw.service || []).map(([m, c, text, note, type]) => ({ t: tm(m), c, text, note: note ?? text.replace(/^Piston[^:]*:\s*/, ''), type: type ?? (/^Piston/.test(text) ? 142 : null) }));
@@ -828,7 +846,9 @@ function prepare(raw) {
     const e = eff.get(c.n); c.effNow = c.intakePct ?? (e ? e[e.length - 1][1] : 100);
     if (c.intakePct == null && !e) c.effNow = null;
   }
-  return { meta: raw.meta, ch, meas, corr, aerr, disp, jobs, refill, errs, climate, service, slack, level, eff, brush: prepBrush(raw.brush || [], s => t0 + s * 1000), minT: Math.floor(minT / DAY) * DAY, maxT, model, active, hasLevel: level.size > 0 };
+  return { meta: raw.meta, ch, meas, corr, aerr, disp, jobs, refill, errs, climate, service, slack, level, eff, brush: prepBrush(raw.brush || [], s => t0 + s * 1000), minT: Math.floor(minT / DAY) * DAY, maxT, model,
+    // start of the machine data (first self-test, dispense or refill); minT can be earlier when errors were logged before it
+    dataT0: t0, active, hasLevel: level.size > 0 };
 }
 /* Brush: a clean = brush tray taken out (5) and put back (6); taking it out again within 30 minutes of putting it
    back counts as the same clean. Automatic cycles: cleaning round (19 → 20) and flushing (13 → 14). */
@@ -1221,7 +1241,7 @@ function maxLevel(n) { const o = D.level.get(n); return o ? Math.max(...o.v) : 0
 function colorantAge(n) {
   const cache = D.ageCache || (D.ageCache = new Map());
   if (cache.has(n)) return cache.get(n);
-  const t0 = D.minT, pts = [[t0, 0, 1]];
+  const t0 = D.dataT0 ?? D.minT, pts = [[t0, 0, 1]];
   let age = 0, w = 1, tp = t0;
   for (const r of D.refill.filter(r => r.c === n && r.lvl != null && r.add > 0 && r.t >= t0).sort((a, b) => a.t - b.t)) {
     age += (r.t - tp) / DAY; pts.push([r.t, age, w]);
@@ -1322,7 +1342,7 @@ function shopSummary(raw) {
       const near = new Set(D.errs.filter(o => o.c != null && o.c !== 99 && Math.abs(o.t - e.t) <= 3 * 60000).map(o => o.c));
       wearErr.push([e.t, near.size === 1 ? [...near][0] : null]);
     }
-    return { start: D.minT, end, day0, model: D.model, firmware: raw.meta.firmware ?? null, clock: raw.meta.clock ?? null,
+    return { start: D.dataT0 ?? D.minT, end, day0, model: D.model, firmware: raw.meta.firmware ?? null, clock: raw.meta.clock ?? null,
       tints, errs, use, steps, refills, ch, aerr: D.aerr.map(e => [e.t, e.c]), wearErr,
       brush: B.cleans.length || B.rounds.length ? B.cleans.map(c => [c.t, before(c.out ?? c.t), before(c.in ?? c.t)]) : null };
   } finally { D = keep; }
@@ -1395,7 +1415,7 @@ function pumpOverview(stats) {
   const L = wearLimit(), wear = new Map();
   for (const s of rows) {
     const repl = D.service.filter(x => x.c === s.n && (x.type === 141 || x.type === 142)).map(x => [x.t, x.note]);
-    const w = wearOf({ piston: s.piston, pump: s.pump, repl, start: D.minT, end: D.maxT, anyway: L.cols.has(String(s.col || '').trim().toUpperCase()) }, L.v); if (w) wear.set(s.n, w);
+    const w = wearOf({ piston: s.piston, pump: s.pump, repl, start: D.dataT0 ?? D.minT, end: D.maxT, anyway: L.cols.has(String(s.col || '').trim().toUpperCase()) }, L.v); if (w) wear.set(s.n, w);
   }
   const next = [...wear].filter(([, w]) => w.daysLeft != null).sort((a, b) => a[1].daysLeft - b[1].daysLeft)[0];
   const wearCell = n => {
@@ -1713,6 +1733,7 @@ function viewErrors(v) {
   const wkA = new Map(); for (const e of ae) { const w = weekStart(e.t); wkA.set(w, (wkA.get(w) || 0) + 1); }
   const q = S.errQ.trim().toLowerCase();
   const shown = list.filter(e => !q || (e.msg + ' ' + e.ph + ' ' + e.sh + ' ' + e.group).toLowerCase().includes(q)).sort((a, b) => b.t - a.t);
+  const badErrs = (D.meta.badErrs || []).filter(b => !q || String(b[1]).toLowerCase().includes(q));
   v.innerHTML = `
   <div class="kpis">
     <div class="kpi ${ae.length ? 'alert' : ''}"><span class="label">Autodrive 2 errors</span><span class="v">${fNum(ae.length)}</span><span class="s">${byCh.size} channel${byCh.size === 1 ? '' : 's'} affected</span></div>
@@ -1745,7 +1766,9 @@ function viewErrors(v) {
   </div>
   <section class="plate">
     <div class="plate-head"><h2>Machine error log</h2><input type="search" id="err-q" placeholder="Filter, e.g. lift, E49, channel 16" value="${esc(S.errQ)}" aria-label="Filter error log"></div>
-    <div class="tscroll" id="err-table">${shown.length ? `<table><thead><tr><th>Date</th><th>Error</th><th>During</th><th>Message</th></tr></thead><tbody>${shown.map(e => `<tr><td class="mono">${fDateTime(e.t)}</td><td>${esc(e.group)}</td><td>${esc(e.ph)}</td><td class="textcell muted">${esc(e.msg)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No errors match this filter.</div>'}</div>
+    <div class="tscroll" id="err-table">${shown.length ? `<table><thead><tr><th>Date</th><th>Error</th><th>During</th><th>Message</th></tr></thead><tbody>${shown.map(e => `<tr><td class="mono">${fDateTime(e.t)}</td><td>${esc(e.group)}</td><td>${esc(e.ph)}${e.other ? ' <span class="flag warn" title="logged under another device record in the database, e.g. a dispenser that was replaced">other device</span>' : ''}</td><td class="textcell muted">${esc(e.msg)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No errors match this filter.</div>'}</div>
+    ${badErrs.length ? `<p class="note"><b>${badErrs.length} error${badErrs.length > 1 ? 's' : ''} with an impossible date</b> (wrong dispenser clock), so outside every period: ${badErrs.map(b => `<span class="mono">${esc(b[0])}</span> ${esc(b[1])}${b[2] ? ' (other device)' : ''}`).join(' · ')}.</p>` : ''}
+    <p class="note">Every machine error in the database is listed: the "Error" events, plus pump, table and valve over current, flash errors and agitation alarms (logged without text, under their own name). Errors logged before the first self-test, dispense or refill (often the day the machine was installed) are included, and so are errors of another device record in the database, marked <span class="flag warn">other device</span>.</p>
   </section>`;
   timeChart($('#ch-aerrs', v), { x0: weekStart(S.from), x1: S.to, height: 200, zero: true, bars: { name: 'AD2 errors', color: css('--crit'), width: WEEK, pts: [...wkA] }, aria: 'Autodrive 2 errors per week', emptyText: 'No Autodrive 2 errors in this period' });
   timeChart($('#ch-errs', v), { x0: weekStart(S.from), x1: S.to, height: 240, zero: true, bars: { name: 'Errors', color: css('--s2'), width: WEEK, pts: [...wk] }, aria: 'Machine errors per week' });
@@ -2138,7 +2161,7 @@ async function openShare(name, tab) {
    Results are kept in IndexedDB per folder with the backup's time and size, so only backups that
    changed are read again. Event times are the dispenser's local clock stored as UTC, like everywhere
    on this page; "now" is shifted the same way to compare with them. */
-const SCAN_V = 10;   // raise when the scan keeps more, so cached scans are read again
+const SCAN_V = 11;   // raise when the scan keeps more, so cached scans are read again
 const alerts = { res: new Map(), err: new Map(), run: null, again: false, scannedAt: 0, preset: '30', from: 0, to: 0 };
 const nowWall = () => Date.now() - new Date().getTimezoneOffset() * 60000;
 /* Period of the shop alerts, the same choices as the period filter of a shop: whole days up to and including
