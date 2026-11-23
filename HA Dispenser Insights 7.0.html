@@ -374,7 +374,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
         <div class="share-tools"><button class="btn" type="button" id="hl-csv" hidden>Export .csv</button></div></div>
       <div id="hl-body"></div>
       <p class="note">One line per shop, from its latest backup. Shops with the most serious points come first. The figures cover the chosen period: channel status is worked out over it as on Channel health with that period, brush and colorant age are taken at its end. Canisters at minimum, the next piston and the backup are the state now. <span class="flag crit">red</span> = act now, <span class="flag warn">amber</span> = keep an eye on it. The points:
-        <b>Channels to check</b> = channels with status Check on Channel health (an Autodrive 2 error in the last 30 days, self-test steps 35% above normal, or intake efficiency below 80%; amber from 3, red from 6);
+        <b>Channels to check</b> = channels with status Check on Channel health (an Autodrive 2 error in the last 30 days, self-test steps of the last 14 days 20+ above normal, or intake efficiency below 80%; amber from 3, red from 6);
         <b>Pump &lt; 10%</b> = Autodrive 2 "pump filled less than 10%" errors (amber from 3, red from 10 per 30 days, scaled to the length of the period);
         <b>Errors per 1,000 tints</b> = machine errors, counting errors in the same minute once, against tints (amber at twice the median of all shops, red at four times, with at least 5 errors);
         <b>Brush</b> = tints since the last brush clean at the end of the period (amber over 150, red over 300; the dispenser asks for a clean after 100) and the median days between the cleans in the period;
@@ -398,7 +398,7 @@ tr.al-new td:first-child { box-shadow: inset 3px 0 0 var(--crit); }
           <label class="controls" for="tr-col"><span class="label">Colorant</span><select class="sel" id="tr-col"></select></label>
           <button class="btn" type="button" id="tr-csv" hidden>Export .csv</button></div></div>
       <div id="tr-body"></div>
-      <p class="note">Travel counters as stored in each shop's latest backup, so the period does not change them; it does set the self-test steps. The database does not state the unit; technicians note it in metres. <b>Pump travel</b> counts over the life of the channel. <b>Piston travel</b> is the piston counter, which restarts at every piston replacement, with or without the tube. <b>Piston &amp; tube travel</b> is the travel since the last "piston &amp; tube replaced" entry: the database keeps no tube counter, so after a piston-only replacement it adds the travel the technician noted at that swap (e.g. "HPP vervangen 422.27m"); without a noted figure it shows "≥", a lower limit. A piston-only entry on the same day as a piston &amp; tube entry counts as the same visit. <b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test of that channel, in the chosen period, as on Channel health: <b>Normal</b> = median excluding the last 14 days, <b>Last 14 d</b> = average of the last 14 days with the change against normal, <b>Weekly steps</b> = weekly median. The export also lists the other counters and the last replacements. <b>Open</b> shows the shop's travel and steps for every channel.</p>
+      <p class="note">Travel counters as stored in each shop's latest backup, so the period does not change them; it does set the self-test steps. The database does not state the unit; technicians note it in metres. <b>Pump travel</b> counts over the life of the channel. <b>Piston travel</b> is the piston counter, which restarts at every piston replacement, with or without the tube. <b>Piston &amp; tube travel</b> is the travel since the last "piston &amp; tube replaced" entry: the database keeps no tube counter, so after a piston-only replacement it adds the travel the technician noted at that swap (e.g. "HPP vervangen 422.27m"); without a noted figure it shows "≥", a lower limit. A piston-only entry on the same day as a piston &amp; tube entry counts as the same visit. <b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test of that channel, in the chosen period, as on Channel health: <b>Normal</b> = median of the 90 days before the last 14 days, <b>Last 14 d</b> = average of the last 14 days with the difference from normal in steps (the steps are often close to 0 or negative, so a percentage would mislead), <b>Weekly steps</b> = weekly median. The export also lists the other counters and the last replacements. <b>Open</b> shows the shop's travel and steps for every channel.</p>
     </section>
     <section class="plate" id="wear" data-home="wear" hidden>
       <div class="plate-head"><h2>Wear prediction · all shops</h2>
@@ -892,32 +892,45 @@ function ensureSel() {
 }
 
 /* ---------- channel metrics ---------- */
+/* Self-test steps ("steps detect problem"): Last 14 d = mean of the last 14 days of the period; Normal = median of the
+   90 days before those 14 days (10+ tests), whatever period is chosen; change = Last 14 d minus Normal, in steps.
+   The steps are often close to 0 or negative, so a percentage of Normal would explode (+2346% from 2 to 49).
+   A rise counts for Check from 20 steps, for Watch from 10, or from 35% / 20% of a Normal above that. */
+const NORMAL_DAYS = 90;
+const riseLevel = (diff, ref) => diff == null ? null
+  : diff >= Math.max(20, 0.35 * Math.max(0, ref ?? 0)) ? 'check' : diff >= Math.max(10, 0.2 * Math.max(0, ref ?? 0)) ? 'watch' : null;
+const fDiff = d => d == null ? '' : `(${d > 0.5 ? '+' : d < -0.5 ? '−' : '±'}${fNum(Math.abs(d))})`;
+const diffClass = d => d == null ? '' : d >= 10 ? 'up' : d <= -10 ? 'down' : '';
 function channelStats(n) {
   const o = D.meas.get(n), info = D.ch.get(n) || {};
   const res = { n, col: colOf(n), count: 0, latest: null, latestT: null, recent: null, ref: null, change: null, spark: [], errs: 0, lastErr: null, errsRecent: 0, corr: 0, ml: 0, shots: 0, refills: 0, added: 0, lvl: info.lvl ?? null, minLvl: info.minLvl ?? null, low: !!info.low, daysToMin: info.daysToMin ?? null, eff: info.effNow ?? null, minEff: null, pump: info.pump ?? null, piston: info.piston ?? null };
   const recentFrom = S.to + 1 - 14 * DAY;
   if (o) {
     const i0 = lowerBound(o.t, S.from), i1 = lowerBound(o.t, S.to + 1);
-    const recent = [], ref = [], weeks = new Map();
+    const recent = [], weeks = new Map();
     for (let i = i0; i < i1; i++) {
       const v = o.p[i]; if (v == null) continue;
-      (o.t[i] >= recentFrom ? recent : ref).push(v);
+      if (o.t[i] >= recentFrom) recent.push(v);
       const w = weekStart(o.t[i]); if (!weeks.has(w)) weeks.set(w, []); weeks.get(w).push(v);
       res.latest = v; res.latestT = o.t[i];
     }
+    // normal: the 90 days before the last 14, also when they lie before the chosen period
+    const ref = [];
+    for (let i = lowerBound(o.t, recentFrom - NORMAL_DAYS * DAY), e = lowerBound(o.t, recentFrom); i < e; i++) if (o.p[i] != null) ref.push(o.p[i]);
     res.count = i1 - i0;
     res.recent = mean(recent);
     res.ref = ref.length >= 10 ? median(ref) : null;
-    if (res.recent != null && res.ref) res.change = res.recent / res.ref - 1;
+    if (res.recent != null && res.ref != null) res.change = res.recent - res.ref;
     res.spark = [...weeks.entries()].map(([w, a]) => [w, median(a)]);
   }
+  const rise = riseLevel(res.change, res.ref);
   for (const e of D.aerr) if (e.c === n && inP(e.t)) { res.errs++; res.lastErr = e.t; if (e.t >= S.to + 1 - 30 * DAY) res.errsRecent++; }
   for (const c of D.corr) if (c.c === n && inP(c.t)) { res.corr++; if (c.k === 104 && c.ef != null) res.minEff = Math.min(res.minEff ?? 100, c.ef); }
   for (const d of D.disp) if (d.c === n && inP(d.t)) { res.ml += d.ml; res.shots += d.n; }
   for (const r of D.refill) if (r.c === n && inP(r.t)) { res.refills++; res.added += r.add > 0 ? r.add : 0; }
   res.status = !res.count ? 'none'
-    : (res.errsRecent > 0 || (res.change ?? 0) >= 0.35 || (res.eff != null && res.eff < 80)) ? 'check'
-    : ((res.change ?? 0) >= 0.2 || res.errs >= 3 || (res.eff != null && res.eff < 100)) ? 'watch' : 'ok';
+    : (res.errsRecent > 0 || rise === 'check' || (res.eff != null && res.eff < 80)) ? 'check'
+    : (rise === 'watch' || res.errs >= 3 || (res.eff != null && res.eff < 100)) ? 'watch' : 'ok';
   res.statusRank = { check: 3, watch: 2, ok: 1, none: 0 }[res.status];
   return res;
 }
@@ -1183,7 +1196,7 @@ function viewOverview(v) {
       <tbody>${sorted.map(s => `<tr class="click" data-ch="${s.n}" tabindex="0">
         <td class="num">${s.n}</td><td><span class="chip">${esc(s.col || '—')}</span></td><td>${statusHtml(s.status)}</td>
         <td class="num">${fNum(s.latest)}</td><td class="num">${fNum(s.ref)}</td>
-        <td class="num">${fNum(s.recent)} <span class="delta ${s.change > 0.05 ? 'up' : s.change < -0.05 ? 'down' : ''}">${s.change != null ? '(' + fPct(s.change) + ')' : ''}</span></td>
+        <td class="num">${fNum(s.recent)} <span class="delta ${diffClass(s.change)}">${fDiff(s.change)}</span></td>
         <td>${sparkline(s.spark)}</td>
         <td class="num"><span class="effv ${effClass(s.eff)}">${s.eff != null ? fNum(s.eff) + '%' : '–'}</span>${s.minEff != null && s.minEff < 100 ? `<div class="muted" style="font-size:11px">lowest ${fNum(s.minEff)}%</div>` : ''}</td>
         <td class="num">${s.errs ? `<b style="color:var(--crit-ink)">${s.errs}</b>` : '0'}${s.lastErr ? `<div class="muted" style="font-size:11px">last ${fDate(s.lastErr)}</div>` : ''}</td>
@@ -1191,7 +1204,7 @@ function viewOverview(v) {
         <td class="num">${fNum(s.pump)}${s.piston != null && s.pump != null && Math.abs(s.piston - s.pump) > 1 ? `<div class="muted" style="font-size:11px">piston ${fNum(s.piston)}</div>` : ''}</td>
         <td><div style="display:flex;align-items:center;gap:8px">${levelBar(s)}${levelFlag(D.ch.get(s.n) || {})}</div></td></tr>`).join('')}</tbody>
     </table></div>
-    <p class="note"><b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test. <b>Normal</b> = median over the period, excluding the last 14 days. <b>Intake eff.</b> = the intake flow rate the Autodrive 2 uses now ("New efficiency %" of the last correction); <b>lowest</b> is the lowest value set in the period. ${statusHtml('check')} AD2 error in the last 30 days, last 14 days ≥ 35% above normal, or intake efficiency below 80%. ${statusHtml('watch')} ≥ 20% above normal, 3+ AD2 errors in the period, or intake efficiency below 100%. The canister bar marks the minimum level with a line.</p>
+    <p class="note"><b>Steps</b> = Autodrive 2 "steps detect problem" from the daily self-test. <b>Normal</b> = median of the 90 days before the last 14 days of the period (whatever period is chosen). <b>Last 14 d</b> = mean of the last 14 days, with between brackets the difference from normal in steps; the steps are often close to 0 or negative, so a percentage would mislead. <b>Intake eff.</b> = the intake flow rate the Autodrive 2 uses now ("New efficiency %" of the last correction); <b>lowest</b> is the lowest value set in the period. ${statusHtml('check')} AD2 error in the last 30 days, last 14 days 20+ steps above normal (or 35% of a normal above 57), or intake efficiency below 80%. ${statusHtml('watch')} 10+ steps above normal (or 20% of a normal above 50), 3+ AD2 errors in the period, or intake efficiency below 100%. The canister bar marks the minimum level with a line.</p>
   </section>
   ${pumpOverview(stats)}`;
   v.querySelectorAll('#pumpsort button').forEach(b => b.addEventListener('click', () => { S.pumpSort = b.dataset.s; render(); }));
@@ -1324,33 +1337,39 @@ function dayRange(s, from, to) {
 const sumRange = (arr, rg) => { let x = 0; if (arr && rg) for (let i = rg[0]; i <= rg[1]; i++) x += arr[i]; return x; };
 // Days of data in the period
 const daysIn = rg => rg ? rg[1] - rg[0] + 1 : 0;
-/* Channel status for the period, as channelStats on Channel health: last 14 days of the period against the median of
-   the rest (10+ tests), Autodrive 2 errors in the last 30 days, intake efficiency now */
+// Normal self-test steps in a daily series: median of the 90 days before day index rf (10+ tests), as on Channel health
+function normalSteps(a, rf) {
+  const v = []; for (let i = Math.max(0, rf - NORMAL_DAYS); i < rf && i < a.length; i++) if (!isNaN(a[i])) v.push(a[i]);
+  return v.length >= 10 ? median(v) : null;
+}
+/* Channel status for the period, as channelStats on Channel health: last 14 days of the period against the normal
+   (the 90 days before them), Autodrive 2 errors in the last 30 days, intake efficiency now */
 function chStatusP(s, n, from, to) {
   const a = s.steps[n], rg = dayRange(s, from, to), eff = s.ch[n]?.[5] ?? null;
-  const rf = Math.floor((to + 1 - 14 * DAY) / DAY) - s.day0, recent = [], ref = [];
-  if (a && rg) for (let i = rg[0]; i <= rg[1]; i++) if (!isNaN(a[i])) (i >= rf ? recent : ref).push(a[i]);
-  const count = recent.length + ref.length, rec = mean(recent), nrm = ref.length >= 10 ? median(ref) : null, change = rec != null && nrm ? rec / nrm - 1 : null;
+  const rf = Math.floor((to + 1 - 14 * DAY) / DAY) - s.day0, recent = [];
+  let count = 0;
+  if (a && rg) for (let i = rg[0]; i <= rg[1]; i++) if (!isNaN(a[i])) { count++; if (i >= rf) recent.push(a[i]); }
+  const rec = mean(recent), nrm = a ? normalSteps(a, rf) : null, rise = riseLevel(rec != null && nrm != null ? rec - nrm : null, nrm);
   let errs = 0, errsRecent = 0;
   for (const [t, c] of s.aerr) if (c === n && t >= from && t <= to) { errs++; if (t >= to + 1 - 30 * DAY) errsRecent++; }
-  return !count ? 'none' : (errsRecent > 0 || (change ?? 0) >= 0.35 || (eff != null && eff < 80)) ? 'check'
-    : ((change ?? 0) >= 0.2 || errs >= 3 || (eff != null && eff < 100)) ? 'watch' : 'ok';
+  return !count ? 'none' : (errsRecent > 0 || rise === 'check' || (eff != null && eff < 80)) ? 'check'
+    : (rise === 'watch' || errs >= 3 || (eff != null && eff < 100)) ? 'watch' : 'ok';
 }
-/* Self-test steps of a channel in the period, as stepStats did over all data: last value, normal = median before the last
-   14 days (10+ values), last 14 days = mean, weekly medians; the 14 days end with the newest test in the period */
+/* Self-test steps of a channel in the period: last value, Last 14 d = mean, Normal = the 90 days before them,
+   change = the difference in steps, weekly medians; the 14 days end with the newest test in the period */
 function stepStatsP(s, n, from, to) {
   const a = s?.steps?.[n], rg = s && dayRange(s, from, to);
   if (!a || !rg) return null;
   let last = -1; for (let i = rg[1]; i >= rg[0]; i--) if (!isNaN(a[i])) { last = i; break; }
   if (last < 0) return null;
-  const rf = last + 1 - 14, recent = [], ref = [], weeks = new Map();
+  const rf = last + 1 - 14, recent = [], weeks = new Map();
   for (let i = rg[0]; i <= last; i++) {
     if (isNaN(a[i])) continue;
-    (i >= rf ? recent : ref).push(a[i]);
+    if (i >= rf) recent.push(a[i]);
     const w = weekStart((s.day0 + i) * DAY); (weeks.get(w) || weeks.set(w, []).get(w)).push(a[i]);
   }
-  const rec = mean(recent), nrm = ref.length >= 10 ? median(ref) : null;
-  return { latest: a[last], latestT: (s.day0 + last) * DAY, recent: rec, ref: nrm, change: rec != null && nrm ? rec / nrm - 1 : null, spark: [...weeks].map(([w, v]) => [w, median(v)]) };
+  const rec = mean(recent), nrm = normalSteps(a, rf);
+  return { latest: a[last], latestT: (s.day0 + last) * DAY, recent: rec, ref: nrm, change: rec != null && nrm != null ? rec - nrm : null, spark: [...weeks].map(([w, v]) => [w, median(v)]) };
 }
 // Colorant age at time t from the refills, as colorantAge on the Colorants tab (age 0 at the start of the data)
 function ageAtP(refs, t0, t) {
@@ -1539,11 +1558,12 @@ function heatmap(host, legendHost) {
     cells.set(n, { med, norm }); all.push(...med.values());
   }
   const absSteps = [quantile(all, 0.05), quantile(all, 0.95)];
-  const relSteps = [-0.3, -0.15, -0.05, 0.05, 0.15, 0.3];
+  // relative: the weekly median minus the channel's median, in steps (a percentage explodes when the median is near 0)
+  const relSteps = [-20, -10, -3, 3, 10, 20];
   const relVars = ['--hm-n3', '--hm-n2', '--hm-n1', '--hm-0', '--hm-p1', '--hm-p2', '--hm-p3'];
   const seqVars = ['--seq0', '--seq1', '--seq2', '--seq3', '--seq4', '--seq5', '--seq6'];
   const colorOf = (val, norm) => {
-    if (S.heat === 'rel') { const r = val / norm - 1; let k = relSteps.findIndex(s => r < s); if (k < 0) k = 6; return css(relVars[k]); }
+    if (S.heat === 'rel') { const r = val - norm; let k = relSteps.findIndex(s => r < s); if (k < 0) k = 6; return css(relVars[k]); }
     const [a, b] = absSteps; const k = Math.max(0, Math.min(6, Math.floor((val - a) / ((b - a) || 1) * 7))); return css(seqVars[k]);
   };
   const L = 74, cw = Math.max(5, Math.min(22, Math.floor((host.clientWidth - L - 8) / weeks.length))), rh = 18;
@@ -1562,12 +1582,12 @@ function heatmap(host, legendHost) {
   svg.addEventListener('pointermove', e => {
     const r = e.target.closest('rect[data-ch]'); if (!r) { hideTip(); return; }
     const n = +r.dataset.ch, w = +r.dataset.w, { med, norm } = cells.get(n), val = med.get(w);
-    showTip(`<div class="t">Ch ${n} · ${esc(colOf(n))} · week of ${fDate(w)}</div><div class="r"><span>Median steps</span><span>${fNum(val)}</span></div><div class="r"><span>Channel normal</span><span>${fNum(norm)}</span></div><div class="r"><span>Difference</span><span>${fPct(val / norm - 1)}</span></div>`, e.clientX, e.clientY);
+    showTip(`<div class="t">Ch ${n} · ${esc(colOf(n))} · week of ${fDate(w)}</div><div class="r"><span>Median steps</span><span>${fNum(val)}</span></div><div class="r"><span>Channel normal</span><span>${fNum(norm)}</span></div><div class="r"><span>Difference</span><span>${fDiff(val - norm).slice(1, -1)} steps</span></div>`, e.clientX, e.clientY);
   });
   svg.addEventListener('pointerleave', hideTip);
   svg.addEventListener('click', e => { const r = e.target.closest('rect[data-ch]'); if (r) { S.sel = [+r.dataset.ch]; render(); $('#ch-steps')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' }); } });
   legendHost.innerHTML = S.heat === 'rel'
-    ? `<span>Weekly median vs the channel's own median for the period:</span><span class="ramp">${relVars.map(v => `<i style="background:var(${v})"></i>`).join('')}</span><span class="mono">−30% … ±5% … +30%</span><span class="muted">Red = more steps than usual.</span>`
+    ? `<span>Weekly median vs the channel's own median for the period:</span><span class="ramp">${relVars.map(v => `<i style="background:var(${v})"></i>`).join('')}</span><span class="mono">−20 … ±3 … +20 steps</span><span class="muted">Red = more steps than usual.</span>`
     : `<span>Weekly median steps:</span><span class="mono">${fNum(absSteps[0])}</span><span class="ramp">${seqVars.map(v => `<i style="background:var(${v})"></i>`).join('')}</span><span class="mono">${fNum(absSteps[1])}+</span>`;
 }
 
@@ -2421,7 +2441,7 @@ function stepCells(x) {
   const s = x.steps;
   if (!s) return '<td class="num muted">–</td><td class="num muted">–</td><td class="num muted">–</td><td><span class="muted">–</span></td>';
   return `<td class="num" title="${s.latestT ? fDate(s.latestT) : ''}">${fNum(s.latest)}</td><td class="num">${fNum(s.ref)}</td>
-    <td class="num">${fNum(s.recent)} <span class="delta ${s.change > 0.05 ? 'up' : s.change < -0.05 ? 'down' : ''}">${s.change != null ? '(' + fPct(s.change) + ')' : ''}</span></td>
+    <td class="num">${fNum(s.recent)} <span class="delta ${diffClass(s.change)}">${fDiff(s.change)}</span></td>
     <td>${sparkline(s.spark)}</td>`;
 }
 function renderTravel() {
@@ -2797,9 +2817,9 @@ function exportTravel() {
   // whole numbers like on screen: the counters are stored as floats, and a decimal point confuses Excel with a comma locale
   const rnd = v => v == null ? '' : Math.round(v), vsAvg = (x, k) => x[k] != null && avg[k] && rows.length > 1 ? Math.round((x[k] / avg[k] - 1) * 100) : '';
   const day = e => e ? csvWall(e[0]).slice(0, 10) : '';
-  downloadCsv(`travel_${col}_${csvToday()}.csv`, ['Shop', 'Folder', 'Channel', 'Colorant', 'Piston & tube travel', 'Piston & tube basis', 'Piston travel', 'Pump travel', 'Piston & tube vs average %', 'Piston vs average %', 'Pump vs average %', 'Last steps', 'Last steps date', 'Normal steps', 'Last 14 d steps', 'Last 14 d vs normal %', 'Last piston & tube replacement', 'Piston & tube note', 'Last piston-only replacement', 'Piston-only note', 'Backup from'],
+  downloadCsv(`travel_${col}_${csvToday()}.csv`, ['Shop', 'Folder', 'Channel', 'Colorant', 'Piston & tube travel', 'Piston & tube basis', 'Piston travel', 'Pump travel', 'Piston & tube vs average %', 'Piston vs average %', 'Pump vs average %', 'Last steps', 'Last steps date', 'Normal steps', 'Last 14 d steps', 'Last 14 d minus normal (steps)', 'Last piston & tube replacement', 'Piston & tube note', 'Last piston-only replacement', 'Piston-only note', 'Backup from'],
     rows.map(x => { const tr = tubeReplaced(x), s = x.steps || {}; return [x.shop || x.name, x.name, x.n, col, rnd(x.tube), tubeBasis(x), rnd(x.piston), rnd(x.pump), vsAvg(x, 'tube'), vsAvg(x, 'piston'), vsAvg(x, 'pump'),
-      rnd(s.latest), s.latestT ? csvWall(s.latestT).slice(0, 10) : '', rnd(s.ref), rnd(s.recent), s.change != null ? Math.round(s.change * 100) : '',
+      rnd(s.latest), s.latestT ? csvWall(s.latestT).slice(0, 10) : '', rnd(s.ref), rnd(s.recent), s.change != null ? Math.round(s.change) : '',
       day(x.lastTube), tr.date ? tr.text : tr.text === 'never' ? 'never replaced' : tr.text, day(x.lastSwap), x.lastSwap ? replNote(x.lastSwap) : '', csvLocal(x.r.ts)]; }));
 }
 // The start screen doubles as the shop alerts dashboard; with a shop open it can be shown again and left.
