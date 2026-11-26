@@ -1,0 +1,4 @@
+{
+  "shop": "Name of the shop folder on the file share",
+  "url": "https://<storage account>.blob.core.windows.net/<inbox container>?sv=...&si=...&sr=c&sig=..."
+}

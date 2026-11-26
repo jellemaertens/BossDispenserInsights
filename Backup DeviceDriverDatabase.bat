@@ -6,7 +6,9 @@ rem  Backup DeviceDriverDatabase
 rem  1. Closes it_pos_app.exe if it is running
 rem  2. Copies DeviceDriverDatabase.mdf + _Log.ldf to C:\My-Mx files
 rem  3. Starts it_pos_app.exe again
-rem  Schedule this file with Windows Task Scheduler at the hour you want.
+rem  4. Shop PCs without the file share: uploads the copy (when "Upload settings.json" is next to this file)
+rem  Schedule this file with Windows Task Scheduler at the hour you want
+rem  (on shop PCs without Intune: "Install backup on shop PC.cmd" does that).
 rem ============================================================
 
 set "APP_NAME=it_pos_app.exe"
@@ -90,8 +92,19 @@ if "%WAS_RUNNING%"=="1" (
     )
 )
 
+rem ---- 5. Shop PCs without access to the file share: send the copy to BOSS ----
+rem Only when "Upload settings.json" is next to this file (see "Upload DeviceDriverDatabase.ps1").
+set "UPLOAD_OK=1"
+if "%COPY_OK%"=="1" if exist "%~dp0Upload settings.json" (
+    call :log "Uploading the copy..."
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Upload DeviceDriverDatabase.ps1" -Source "%DEST_DIR%\%FILE_MDF%" -Settings "%~dp0Upload settings.json" -Log "%LOG%"
+    if errorlevel 1 set "UPLOAD_OK=0"
+)
+
 call :log "===== Backup finished ====="
-if "%COPY_OK%"=="1" (exit /b 0) else (exit /b 2)
+if not "%COPY_OK%"=="1" exit /b 2
+if not "%UPLOAD_OK%"=="1" exit /b 3
+exit /b 0
 
 :log
 echo [%date% %time%] %~1
