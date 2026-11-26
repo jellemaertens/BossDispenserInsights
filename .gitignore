@@ -3,3 +3,4 @@
 # A shop's upload link is a secret: never publish it (this repo is public on GitHub Pages)
 Upload settings*.json
 !Upload settings.example.json
+Dropbox upload packages/

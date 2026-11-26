@@ -1,7 +1,7 @@
 # Sets up the daily backup + upload on a shop PC that isn't managed by Intune.
-# Put these files together in one folder (e.g. on a USB stick) and run "Install backup on shop PC.cmd" on the shop PC,
-# signed in as the user who works with the dispenser software:
-#   Backup DeviceDriverDatabase.bat, Upload DeviceDriverDatabase.ps1, Upload settings.json (this shop's), and this script.
+# "New Dropbox upload package.cmd" makes a folder per shop with all files this needs (the backup + upload scripts and the
+# shop's Upload settings.json). Copy it to the shop PC (e.g. USB stick) and run "Install backup on shop PC.cmd" there,
+# signed in as the user who works with the dispenser software.
 # It copies them to C:\My-Mx files and adds a daily task "Backup DeviceDriverDatabase" for this user. When the PC is off
 # at that time, the task runs as soon as the PC is on again.
 param(
@@ -19,7 +19,7 @@ try {
   # Check the settings before anything is installed
   $cfg = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Upload settings.json'), [Text.UTF8Encoding]::new($false)) | ConvertFrom-Json
   if (-not "$($cfg.shop)".Trim()) { throw 'Fill in "shop" in Upload settings.json.' }
-  if ("$($cfg.url)" -notmatch '^https://[^?]+\?.*sig=') { throw 'Fill in "url" in Upload settings.json with the upload link from BOSS.' }
+  if (-not "$($cfg.app_key)".Trim() -or -not "$($cfg.refresh_token)".Trim()) { throw 'Upload settings.json has no Dropbox upload key; make the package with "New Dropbox upload package.cmd".' }
   Write-Host "Shop: $($cfg.shop)"
 
   if (-not $At) { $At = Read-Host 'Time of the daily backup, HH:mm (Enter = 07:30)' }
